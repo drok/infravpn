@@ -182,8 +182,8 @@ struct key_state
   struct buffer plaintext_write_buf;
   struct buffer ack_write_buf;
 
-  struct reliable *send_reliable; /* holds a copy of outgoing packets until ACK received */
-  struct reliable *rec_reliable;  /* order incoming ciphertext packets before we pass to TLS */
+  struct send_reliable *send_reliable; /* holds a copy of outgoing packets until ACK received */
+  struct rec_reliable *rec_reliable;  /* order incoming ciphertext packets before we pass to TLS */
   struct reliable_ack *rec_ack;	  /* buffers all packet IDs we want to ACK back to sender */
 
   struct buffer_list *paybuf;

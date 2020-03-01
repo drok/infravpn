@@ -789,8 +789,8 @@ key_state_init (struct tls_session *session,
   ALLOC_OBJ_CLEAR (ks->key_src, struct key_source2);
 
   /* allocate reliability objects */
-  ALLOC_OBJ_CLEAR (ks->send_reliable, struct reliable);
-  ALLOC_OBJ_CLEAR (ks->rec_reliable, struct reliable);
+  ALLOC_OBJ_CLEAR (ks->send_reliable, struct send_reliable);
+  ALLOC_OBJ_CLEAR (ks->rec_reliable, struct rec_reliable);
   ALLOC_OBJ_CLEAR (ks->rec_ack, struct reliable_ack);
 
   /* allocate buffers */
@@ -798,16 +798,14 @@ key_state_init (struct tls_session *session,
   ks->plaintext_write_buf = alloc_buf (TLS_CHANNEL_BUF_SIZE);
 #if defined(DONT_PACK_CONTROL_FRAMES)
   ks->ack_write_buf = alloc_buf (BUF_SIZE (&session->opt->frame));
-  reliable_init (ks->send_reliable, BUF_SIZE (&session->opt->frame),
-		 FRAME_HEADROOM (&session->opt->frame), TLS_RELIABLE_N_SEND_BUFFERS);
-  reliable_init (ks->rec_reliable, BUF_SIZE (&session->opt->frame),
-		 FRAME_HEADROOM (&session->opt->frame), TLS_RELIABLE_N_REC_BUFFERS);
+  reliable_send_init (ks->send_reliable, BUF_SIZE (&session->opt->frame));
+  reliable_rec_init (ks->rec_reliable, BUF_SIZE (&session->opt->frame),
+		 FRAME_HEADROOM (&session->opt->frame));
 #else
   ks->ack_write_buf = alloc_buf (BUF_SIZE (frame));
-  reliable_init (ks->send_reliable, BUF_SIZE (frame),
-		 FRAME_HEADROOM (frame), TLS_RELIABLE_N_SEND_BUFFERS);
-  reliable_init (ks->rec_reliable, BUF_SIZE (frame),
-		 FRAME_HEADROOM (frame), TLS_RELIABLE_N_REC_BUFFERS);
+  reliable_send_init (ks->send_reliable, BUF_SIZE (frame),
+		 FRAME_HEADROOM (frame));
+  reliable_rec_init (ks->rec_reliable, BUF_SIZE (frame));
 #endif
   reliable_set_timeout (ks->send_reliable, session->opt->packet_timeout);
 
@@ -852,13 +850,13 @@ key_state_free (struct key_state *ks, bool clear)
 
   if (ks->send_reliable)
     {
-      reliable_free (ks->send_reliable);
+      reliable_send_free (ks->send_reliable);
       free (ks->send_reliable);
     }
 
   if (ks->rec_reliable)
     {
-      reliable_free (ks->rec_reliable);
+      reliable_rec_free (ks->rec_reliable);
       free (ks->rec_reliable);
     }
 
@@ -3330,7 +3328,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 			if (reliable_not_replay (ks->rec_reliable, id))
 			  {
 			    /* Save incoming ciphertext packet to reliable buffer */
-			    struct buffer *in = reliable_get_buf (ks->rec_reliable);
+			    struct buffer *in = reliable_get_rec_buf (ks->rec_reliable);
 			    ASSERT (in);
 			    if (!buf_copy (in, buf))
 			      {

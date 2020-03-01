@@ -283,41 +283,76 @@ reliable_ack_get_frame_extra(int n_acks)
  */
 
 void
-reliable_init (struct reliable *rel, int buf_size, int offset, int array_size)
+reliable_send_init (struct send_reliable *rel, int buf_size, int offset)
 {
   int i;
 
   CLEAR (*rel);
-  ASSERT (array_size > 0 && array_size <= RELIABLE_CAPACITY);
-  rel->size = array_size;
+
   rel->offset = offset;
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      struct reliable_entry *e = &rel->array[i];
+      struct send_reliable_entry *e = &rel->array[i];
       e->buf = alloc_buf (buf_size);
       ASSERT (buf_init (&e->buf, offset));
     }
 }
 
 void
-reliable_free (struct reliable *rel)
+reliable_rec_init (struct rec_reliable *rel, int buf_size)
 {
   int i;
-  for (i = 0; i < rel->size; ++i)
+
+  CLEAR (*rel);
+
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      struct reliable_entry *e = &rel->array[i];
+      struct rec_reliable_entry *e = &rel->array[i];
+      e->buf = alloc_buf (buf_size);
+      ASSERT (buf_init (&e->buf, 0));
+    }
+}
+
+void
+reliable_send_free (struct send_reliable *rel)
+{
+  int i;
+  for (i = 0; i < SIZE(rel->array); ++i)
+    {
+      struct send_reliable_entry *e = &rel->array[i];
       free_buf (&e->buf);
+    }
+}
+
+void
+reliable_rec_free (struct rec_reliable *rel)
+{
+  int i;
+  for (i = 0; i < SIZE(rel->array); ++i)
+    {
+      struct rec_reliable_entry *e = &rel->array[i];
+      free_buf (&e->buf);
+    }
+}
+
+void
+reliable_realloc (struct send_reliable *rel, int buf_size)
+{
+  int i;
+  for (i = 0; i < SIZE(rel->array); ++i)
+    {
+      realloc_buf(&rel->array[i].buf, buf_size);
     }
 }
 
 /* no active buffers? */
 bool
-reliable_empty (const struct reliable *rel)
+reliable_empty (const struct send_reliable *rel)
 {
   int i;
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      const struct reliable_entry *e = &rel->array[i];
+      const struct send_reliable_entry *e = &rel->array[i];
       if (e->active)
 	return false;
     }
@@ -326,15 +361,15 @@ reliable_empty (const struct reliable *rel)
 
 /* del acknowledged items from send buf */
 void
-reliable_send_purge (struct reliable *rel, struct reliable_ack *ack)
+reliable_send_purge (struct send_reliable *rel, struct reliable_ack *ack)
 {
   int i, j;
   for (i = 0; i < ack->len; ++i)
     {
       packet_id_type pid = ack->packet_id[i];
-      for (j = 0; j < rel->size; ++j)
+      for (j = 0; j < SIZE(rel->array); ++j)
 	{
-	  struct reliable_entry *e = &rel->array[j];
+	  struct send_reliable_entry *e = &rel->array[j];
 	  if (e->active && e->packet_id == pid)
 	    {
 	      dmsg (D_REL_DEBUG,
@@ -359,15 +394,31 @@ reliable_send_purge (struct reliable *rel, struct reliable_ack *ack)
 
 /* print the current sequence of active packet IDs */
 static const char *
-reliable_print_ids (const struct reliable *rel, struct gc_arena *gc)
+reliable_print_send_ids (const struct send_reliable *rel, struct gc_arena *gc)
 {
   struct buffer out = alloc_buf_gc (256, gc);
   int i;
 
   buf_printf (&out, "[" packet_id_format "]", (packet_id_print_type)rel->packet_id);
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      const struct reliable_entry *e = &rel->array[i];
+      const struct send_reliable_entry *e = &rel->array[i];
+      if (e->active)
+	buf_printf (&out, " " packet_id_format, (packet_id_print_type)e->packet_id);
+    }
+  return BSTR (&out);
+}
+
+static const char *
+reliable_print_rec_ids (const struct rec_reliable *rel, struct gc_arena *gc)
+{
+  struct buffer out = alloc_buf_gc (256, gc);
+  int i;
+
+  buf_printf (&out, "[" packet_id_format "]", (packet_id_print_type)rel->packet_id);
+  for (i = 0; i < SIZE(rel->array); ++i)
+    {
+      const struct rec_reliable_entry *e = &rel->array[i];
       if (e->active)
 	buf_printf (&out, " " packet_id_format, (packet_id_print_type)e->packet_id);
     }
@@ -376,32 +427,32 @@ reliable_print_ids (const struct reliable *rel, struct gc_arena *gc)
 
 /* true if at least one free buffer available */
 bool
-reliable_can_get (const struct reliable *rel)
+reliable_can_get (const struct rec_reliable *rel)
 {
   struct gc_arena gc = gc_new ();
   int i;
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      const struct reliable_entry *e = &rel->array[i];
+      const struct rec_reliable_entry *e = &rel->array[i];
       if (!e->active)
 	return true;
     }
-  dmsg (D_REL_LOW, "ACK no free receive buffer available: %s", reliable_print_ids (rel, &gc));
+  dmsg (D_REL_LOW, "ACK no free receive buffer available: %s", reliable_print_rec_ids (rel, &gc));
   gc_free (&gc);
   return false;
 }
 
 /* make sure that incoming packet ID isn't a replay */
 bool
-reliable_not_replay (const struct reliable *rel, packet_id_type id)
+reliable_not_replay (const struct rec_reliable *rel, packet_id_type id)
 {
   struct gc_arena gc = gc_new ();
   int i;
   if (reliable_pid_min (id, rel->packet_id))
     goto bad;
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      const struct reliable_entry *e = &rel->array[i];
+      const struct rec_reliable_entry *e = &rel->array[i];
       if (e->active && e->packet_id == id)
 	goto bad;
     }
@@ -409,26 +460,26 @@ reliable_not_replay (const struct reliable *rel, packet_id_type id)
   return true;
 
  bad:
-  dmsg (D_REL_DEBUG, "ACK " packet_id_format " is a replay: %s", (packet_id_print_type)id, reliable_print_ids (rel, &gc));
+  dmsg (D_REL_DEBUG, "ACK " packet_id_format " is a replay: %s", (packet_id_print_type)id, reliable_print_rec_ids (rel, &gc));
   gc_free (&gc);
   return false;
 }
 
 /* make sure that incoming packet ID won't deadlock the receive buffer */
 bool
-reliable_wont_break_sequentiality (const struct reliable *rel, packet_id_type id)
+reliable_wont_break_sequentiality (const struct rec_reliable *rel, packet_id_type id)
 {
   struct gc_arena gc = gc_new ();
 
-  const int ret = reliable_pid_in_range2 (id, rel->packet_id, rel->size);
+  const int ret = reliable_pid_in_range2 (id, rel->packet_id, SIZE(rel->array));
 
   if (!ret)
     {
       dmsg (D_REL_LOW, "ACK " packet_id_format " breaks sequentiality: %s",
-	   (packet_id_print_type)id, reliable_print_ids (rel, &gc));
+	   (packet_id_print_type)id, reliable_print_rec_ids (rel, &gc));
     }
 
-  dmsg (D_REL_DEBUG, "ACK RWBS rel->size=%d rel->packet_id=%08x id=%08x ret=%d\n", rel->size, rel->packet_id, id, ret);
+  dmsg (D_REL_DEBUG, "ACK RWBS rel->size=%zu rel->packet_id=%08x id=%08x ret=%d\n", SIZE(rel->array), rel->packet_id, id, ret);
 
   gc_free (&gc);
   return ret;
@@ -436,12 +487,28 @@ reliable_wont_break_sequentiality (const struct reliable *rel, packet_id_type id
 
 /* grab a free buffer */
 struct buffer *
-reliable_get_buf (struct reliable *rel)
+reliable_get_rec_buf (struct rec_reliable *rel)
 {
   int i;
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      struct reliable_entry *e = &rel->array[i];
+      struct rec_reliable_entry *e = &rel->array[i];
+      if (!e->active)
+	{
+	  ASSERT (buf_init (&e->buf, 0));
+	  return &e->buf;
+	}
+    }
+  return NULL;
+}
+
+struct buffer *
+reliable_get_send_buf (struct send_reliable *rel)
+{
+  int i;
+  for (i = 0; i < SIZE(rel->array); ++i)
+    {
+      struct send_reliable_entry *e = &rel->array[i];
       if (!e->active)
 	{
 	  ASSERT (buf_init (&e->buf, rel->offset));
@@ -453,7 +520,7 @@ reliable_get_buf (struct reliable *rel)
 
 /* grab a free buffer, fail if buffer clogged by unacknowledged low packet IDs */
 struct buffer *
-reliable_get_buf_output_sequenced (struct reliable *rel)
+reliable_get_buf_output_sequenced (struct send_reliable *rel)
 {
   struct gc_arena gc = gc_new ();
   int i;
@@ -462,9 +529,9 @@ reliable_get_buf_output_sequenced (struct reliable *rel)
   struct buffer *ret = NULL;
 
   /* find minimum active packet_id */
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      const struct reliable_entry *e = &rel->array[i];
+      const struct send_reliable_entry *e = &rel->array[i];
       if (e->active)
 	{
 	  if (!min_id_defined || reliable_pid_min (e->packet_id, min_id))
@@ -477,7 +544,7 @@ reliable_get_buf_output_sequenced (struct reliable *rel)
 
   if (!min_id_defined || reliable_pid_in_range1 (rel->packet_id, min_id, rel->size))
     {
-      ret = reliable_get_buf (rel);
+      ret = reliable_get_send_buf (rel);
     }
   else
     {
@@ -489,12 +556,12 @@ reliable_get_buf_output_sequenced (struct reliable *rel)
 
 /* get active buffer for next sequentially increasing key ID */
 struct buffer *
-reliable_get_buf_sequenced (struct reliable *rel)
+reliable_get_buf_sequenced (struct rec_reliable *rel)
 {
   int i;
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      struct reliable_entry *e = &rel->array[i];
+      struct rec_reliable_entry *e = &rel->array[i];
       if (e->active && e->packet_id == rel->packet_id)
 	{
 	  return &e->buf;
@@ -503,16 +570,37 @@ reliable_get_buf_sequenced (struct reliable *rel)
   return NULL;
 }
 
+void reliable_renumber (struct send_reliable *rel, int offset)
+{
+  int i;
+  packet_id_type net_pid;
+
+  for (i = 0; i < SIZE(rel->array); ++i)
+    {
+      struct send_reliable_entry *e = &rel->array[i];
+      if (e->active >= REL_ACTIVE)
+	{
+          e->packet_id += offset;
+          e->next_try = now;
+          
+	  net_pid = htonpid (e->packet_id);
+          buf_advance(&e->buf, sizeof (net_pid));
+          buf_write_prepend (&e->buf, &net_pid, sizeof (net_pid));
+	}
+    }
+  rel->packet_id += offset;
+}
+
 /* return true if reliable_send would return a non-NULL result */
 bool
-reliable_can_send (const struct reliable *rel)
+reliable_can_send (const struct send_reliable *rel)
 {
   struct gc_arena gc = gc_new ();
   int i;
   int n_active = 0, n_current = 0;
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      const struct reliable_entry *e = &rel->array[i];
+      const struct send_reliable_entry *e = &rel->array[i];
       if (e->active)
 	{
 	  ++n_active;
@@ -523,7 +611,7 @@ reliable_can_send (const struct reliable *rel)
   dmsg (D_REL_DEBUG, "ACK reliable_can_send active=%d current=%d : %s",
        n_active,
        n_current,
-       reliable_print_ids (rel, &gc));
+       reliable_print_send_ids (rel, &gc));
 
   gc_free (&gc);
   return n_current > 0;
@@ -532,14 +620,14 @@ reliable_can_send (const struct reliable *rel)
 #ifdef EXPONENTIAL_BACKOFF
 /* return a unique point-in-time to trigger retry */
 static time_t
-reliable_unique_retry (struct reliable *rel, time_t retry)
+reliable_unique_retry (struct send_reliable *rel, time_t retry)
 {
   int i;
   while (true)
     {
-      for (i = 0; i < rel->size; ++i)
+      for (i = 0; i < SIZE(rel->array); ++i)
 	{
-	  struct reliable_entry *e = &rel->array[i];
+	  struct send_reliable_entry *e = &rel->array[i];
 	  if (e->active && e->next_try == retry)
 	    goto again;
 	}
@@ -553,15 +641,15 @@ reliable_unique_retry (struct reliable *rel, time_t retry)
 
 /* return next buffer to send to remote */
 struct buffer *
-reliable_send (struct reliable *rel, int *opcode)
+reliable_send (struct send_reliable *rel, int *opcode)
 {
   int i;
-  struct reliable_entry *best = NULL;
+  struct send_reliable_entry *best = NULL;
   const time_t local_now = now;
 
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      struct reliable_entry *e = &rel->array[i];
+      struct send_reliable_entry *e = &rel->array[i];
       if (e->active && local_now >= e->next_try)
 	{
 	  if (!best || reliable_pid_min (e->packet_id, best->packet_id))
@@ -590,16 +678,16 @@ reliable_send (struct reliable *rel, int *opcode)
 /* in how many seconds should we wake up to check for timeout */
 /* if we return BIG_TIMEOUT, nothing to wait for */
 interval_t
-reliable_send_timeout (const struct reliable *rel)
+reliable_send_timeout (const struct send_reliable *rel)
 {
   struct gc_arena gc = gc_new ();
   interval_t ret = BIG_TIMEOUT;
   int i;
   const time_t local_now = now;
 
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      const struct reliable_entry *e = &rel->array[i];
+      const struct send_reliable_entry *e = &rel->array[i];
       if (e->active)
 	{
 	  if (e->next_try <= local_now)
@@ -616,7 +704,7 @@ reliable_send_timeout (const struct reliable *rel)
 
   dmsg (D_REL_DEBUG, "ACK reliable_send_timeout %d %s",
        (int) ret,
-       reliable_print_ids (rel, &gc));
+       reliable_print_send_ids (rel, &gc));
 
   gc_free (&gc);
   return ret;
@@ -627,13 +715,13 @@ reliable_send_timeout (const struct reliable *rel)
  */
 
 void
-reliable_mark_active_incoming (struct reliable *rel, struct buffer *buf,
-			       packet_id_type pid, int opcode)
+reliable_mark_active_incoming (struct rec_reliable *rel, struct buffer *buf,
+			       packet_id_type pid)
 {
   int i;
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      struct reliable_entry *e = &rel->array[i];
+      struct rec_reliable_entry *e = &rel->array[i];
       if (buf == &e->buf)
 	{
 	  e->active = true;
@@ -644,9 +732,6 @@ reliable_mark_active_incoming (struct reliable *rel, struct buffer *buf,
 	  /* check for replay */
 	  ASSERT (!reliable_pid_min (pid, rel->packet_id));
 
-	  e->opcode = opcode;
-	  e->next_try = 0;
-	  e->timeout = 0;
 	  dmsg (D_REL_DEBUG, "ACK mark active incoming ID " packet_id_format, (packet_id_print_type)e->packet_id);
 	  return;
 	}
@@ -659,12 +744,12 @@ reliable_mark_active_incoming (struct reliable *rel, struct buffer *buf,
  */
 
 void
-reliable_mark_active_outgoing (struct reliable *rel, struct buffer *buf, int opcode)
+reliable_mark_active_outgoing (struct send_reliable *rel, struct buffer *buf, int opcode)
 {
   int i;
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      struct reliable_entry *e = &rel->array[i];
+      struct send_reliable_entry *e = &rel->array[i];
       if (buf == &e->buf)
 	{
 	  /* Write mode, increment packet_id (i.e. sequence number)
@@ -686,12 +771,12 @@ reliable_mark_active_outgoing (struct reliable *rel, struct buffer *buf, int opc
 
 /* delete a buffer previously activated by reliable_mark_active() */
 void
-reliable_mark_deleted (struct reliable *rel, struct buffer *buf, bool inc_pid)
+reliable_mark_deleted (struct rec_reliable *rel, struct buffer *buf, bool inc_pid)
 {
   int i;
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      struct reliable_entry *e = &rel->array[i];
+      struct rec_reliable_entry *e = &rel->array[i];
       if (buf == &e->buf)
 	{
 	  e->active = false;
@@ -718,7 +803,7 @@ reliable_ack_debug_print (const struct reliable_ack *ack, char *desc)
 }
 
 void
-reliable_debug_print (const struct reliable *rel, char *desc)
+reliable_debug_print (const struct send_reliable *rel, char *desc)
 {
   int i;
   update_time ();
@@ -727,9 +812,9 @@ reliable_debug_print (const struct reliable *rel, char *desc)
   printf ("  initial_timeout=%d\n", (int)rel->initial_timeout);
   printf ("  packet_id=" packet_id_format "\n", rel->packet_id);
   printf ("  now=" time_format "\n", now);
-  for (i = 0; i < rel->size; ++i)
+  for (i = 0; i < SIZE(rel->array); ++i)
     {
-      const struct reliable_entry *e = &rel->array[i];
+      const struct send_reliable_entry *e = &rel->array[i];
       if (e->active)
 	{
 	  printf ("  %d: packet_id=" packet_id_format " len=%d", i, e->packet_id, e->buf.len);
