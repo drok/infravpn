@@ -361,9 +361,6 @@ struct tls_session
   /* const options and config info */
   struct tls_options *opt;
 
-  /* during hard reset used to control burst retransmit */
-  bool burst;
-
   /* authenticate control packets */
   struct crypto_options tls_auth;
   struct packet_id tls_auth_pid;

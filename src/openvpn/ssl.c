@@ -3017,7 +3017,6 @@ tls_pre_decrypt (struct tls_multi *multi,
 	}
       else			  /* control channel packet */
 	{
-	  bool do_burst = false;
 	  bool new_link = false;
 	  struct session_id sid;  /* remote session ID */
 
@@ -3144,7 +3143,6 @@ tls_pre_decrypt (struct tls_multi *multi,
 		       print_link_socket_actual (from, &gc),
 		       session_id_print (&sid, &gc));
 
-		  do_burst = true;
 		  new_link = true;
 		  i = TM_ACTIVE;
 		  session->untrusted_addr = *from;
@@ -3248,8 +3246,6 @@ tls_pre_decrypt (struct tls_multi *multi,
 		  /*
 		   * Remote responding to our key renegotiation request?
 		   */
-		  if (op == P_CONTROL_SOFT_RESET_V1)
-		    do_burst = true;
 
 		  if (!read_control_auth (buf, &session->tls_auth, from))
 		    goto error;
@@ -3292,16 +3288,6 @@ tls_pre_decrypt (struct tls_multi *multi,
 		     "TLS Error: Existing session control channel packet from unknown IP address: %s",
 		     print_link_socket_actual (from, &gc));
 		goto error;
-	      }
-
-	    /*
-	     * Should we do a retransmit of all unacknowledged packets in
-	     * the send buffer?  This improves the start-up efficiency of the
-	     * initial key negotiation after the 2nd peer comes online.
-	     */
-	    if (do_burst && !session->burst)
-	      {
-		session->burst = true;
 	      }
 
 	    /* Check key_id */
