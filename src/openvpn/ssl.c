@@ -799,19 +799,15 @@ key_state_init (struct tls_session *session,
 #if defined(DONT_PACK_CONTROL_FRAMES)
   ks->ack_write_buf = alloc_buf (BUF_SIZE (&session->opt->frame));
   reliable_init (ks->send_reliable, BUF_SIZE (&session->opt->frame),
-		 FRAME_HEADROOM (&session->opt->frame), TLS_RELIABLE_N_SEND_BUFFERS,
-		 ks->key_id ? false : session->opt->xmit_hold);
+		 FRAME_HEADROOM (&session->opt->frame), TLS_RELIABLE_N_SEND_BUFFERS);
   reliable_init (ks->rec_reliable, BUF_SIZE (&session->opt->frame),
-		 FRAME_HEADROOM (&session->opt->frame), TLS_RELIABLE_N_REC_BUFFERS,
-		 false);
+		 FRAME_HEADROOM (&session->opt->frame), TLS_RELIABLE_N_REC_BUFFERS);
 #else
   ks->ack_write_buf = alloc_buf (BUF_SIZE (frame));
   reliable_init (ks->send_reliable, BUF_SIZE (frame),
-		 FRAME_HEADROOM (frame), TLS_RELIABLE_N_SEND_BUFFERS,
-		 ks->key_id ? false : session->opt->xmit_hold);
+		 FRAME_HEADROOM (frame), TLS_RELIABLE_N_SEND_BUFFERS);
   reliable_init (ks->rec_reliable, BUF_SIZE (frame),
-		 FRAME_HEADROOM (frame), TLS_RELIABLE_N_REC_BUFFERS,
-		 false);
+		 FRAME_HEADROOM (frame), TLS_RELIABLE_N_REC_BUFFERS);
 #endif
   reliable_set_timeout (ks->send_reliable, session->opt->packet_timeout);
 
@@ -3305,7 +3301,6 @@ tls_pre_decrypt (struct tls_multi *multi,
 	     */
 	    if (do_burst && !session->burst)
 	      {
-		reliable_schedule_now (ks->send_reliable);
 		session->burst = true;
 	      }
 

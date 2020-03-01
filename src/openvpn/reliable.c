@@ -283,13 +283,12 @@ reliable_ack_get_frame_extra(int n_acks)
  */
 
 void
-reliable_init (struct reliable *rel, int buf_size, int offset, int array_size, bool hold)
+reliable_init (struct reliable *rel, int buf_size, int offset, int array_size)
 {
   int i;
 
   CLEAR (*rel);
   ASSERT (array_size > 0 && array_size <= RELIABLE_CAPACITY);
-  rel->hold = hold;
   rel->size = array_size;
   rel->offset = offset;
   for (i = 0; i < rel->size; ++i)
@@ -527,7 +526,7 @@ reliable_can_send (const struct reliable *rel)
        reliable_print_ids (rel, &gc));
 
   gc_free (&gc);
-  return n_current > 0 && !rel->hold;
+  return n_current > 0;
 }
 
 #ifdef EXPONENTIAL_BACKOFF
@@ -586,24 +585,6 @@ reliable_send (struct reliable *rel, int *opcode)
       return &best->buf;
     }
   return NULL;
-}
-
-/* schedule all pending packets for immediate retransmit */
-void
-reliable_schedule_now (struct reliable *rel)
-{
-  int i;
-  dmsg (D_REL_DEBUG, "ACK reliable_schedule_now");
-  rel->hold = false;
-  for (i = 0; i < rel->size; ++i)
-    {
-      struct reliable_entry *e = &rel->array[i];
-      if (e->active)
-	{
-	  e->next_try = now;
-	  e->timeout = rel->initial_timeout;
-	}
-    }
 }
 
 /* in how many seconds should we wake up to check for timeout */

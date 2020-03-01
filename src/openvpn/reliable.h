@@ -89,7 +89,6 @@ struct reliable
   interval_t initial_timeout;
   packet_id_type packet_id;
   int offset;
-  bool hold; /* don't xmit until reliable_schedule_now is called */
   struct reliable_entry array[RELIABLE_CAPACITY];
 };
 
@@ -190,9 +189,8 @@ bool reliable_ack_write (struct reliable_ack *ack,
  *     buffers to allow efficient header prepending.
  * @param array_size The number of packets that this reliable
  *     structure can store simultaneously.
- * @param hold description
  */
-void reliable_init (struct reliable *rel, int buf_size, int offset, int array_size, bool hold);
+void reliable_init (struct reliable *rel, int buf_size, int offset, int array_size);
 
 /**
  * Free allocated memory associated with a reliable structure.
@@ -449,15 +447,6 @@ bool reliable_empty (const struct reliable *rel);
  *     already passed, this function will return 0.
  */
 interval_t reliable_send_timeout (const struct reliable *rel);
-
-/**
- * Reschedule all entries of a reliable structure to be ready
- *     for (re)sending immediately.
- *
- * @param rel The reliable structure of which the entries should be
- *     modified.
- */
-void reliable_schedule_now (struct reliable *rel);
 
 void reliable_debug_print (const struct reliable *rel, char *desc);
 

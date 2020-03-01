@@ -2313,11 +2313,6 @@ do_init_crypto_tls (struct context *c, const unsigned int flags)
     to.push_peer_info_detail = 0;
 #endif
 
-  /* should we not xmit any packets until we get an initial
-     response from client? */
-  if (to.server && options->ce.proto == PROTO_TCPv4_SERVER)
-    to.xmit_hold = true;
-
 #ifdef ENABLE_OCC
   to.disable_occ = !options->occ;
 #endif
