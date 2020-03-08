@@ -1184,7 +1184,7 @@ AM_CONDITIONAL([IMPLEMENTED_tls_crypt_2_5],
     [test -f $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c &&
     ${GREP} '^tls_crypt_v2_write_client_key_file(const char \*filename$' $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c >/dev/null])
 
-AM_CONDITIONAL([IMPLEMENTED_rfc4821], [false])
+AM_CONDITIONAL([IMPLEMENTED_rfc4821], [true])
 
 AM_CONDITIONAL([IMPLEMENTED_buffer_2_0],
     [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
