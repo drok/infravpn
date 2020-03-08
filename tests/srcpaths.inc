@@ -21,6 +21,29 @@
 # When the source tree is reorganized, add a new conditional define there
 # and add a new set of paths here.
 
+if TREE_VERSION_2_0
+    openvpn_includedir = $(top_srcdir)/include
+    openvpn_srcdir = $(top_srcdir)
+endif
+
+if TREE_VERSION_2_3
+    openvpn_includedir = $(top_srcdir)/include
+    openvpn_srcdir = $(top_srcdir)/src/openvpn
+    compat_srcdir = $(top_srcdir)/src/compat
+endif
+
+if TREE_VERSION_FUTURE_EXAMPLE
+    openvpn_includedir = $(top_srcdir)/new-path/to/include
+    openvpn_srcdir = $(top_srcdir)/new-path/to/openvpn
+    compat_srcdir = $(top_srcdir)/new-path/to/compat
+
+    # New component paths should not be added retroactively to older
+    # TREE_VERSION_*, where they did do not exist.
+    # If a component is backported, then yes, add it retroactively, so the
+    # corresponding unit tests can find the implementation.
+    newcomponent_srcdir = $(top_srcdir)/src/where-is-the-new-component
+endif
+
 # Override default libs resulting from configure.ac
 # In tests, all needed libraries must be specifically added to LDADD
 LIBS =

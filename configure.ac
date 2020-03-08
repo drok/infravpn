@@ -43,6 +43,35 @@ AC_CONFIG_FILES([
     tests/Makefile
 ])
 
+# ######################## Tree-Structure Versioning ###########################
+dnl # As the project evolves, the source may be reorganized repeatedly, with files
+dnl # moved or renamed, directories created or removed, etc.
+dnl # In order to inform the test suite (which must work on any source structure),
+dnl # a $tree_structure_version variable is tracked. Based on this variable,
+dnl # the testsuite defines the source paths appropriately.
+dnl # When the source is reorganized next, this variable should be explicitly set,
+dnl # in and tests/srcpaths.inc file in the tests repo should be updated appropriately.
+dnl # Adding new components (eg. src/plugins), without moving existing sources, is
+dnl # not reorganizing, so a new TREE_VERSION conditional is not needed. In this case,
+dnl # simply add "plugins_srcdir=..." to tests/srcpaths.inc under the current
+dnl # TREE_VERSION conditional.
+# The early versions of the project did not have this infrastructure, so a
+# $tree_structure_version is detected.
+
+# Legacy trees have to be detected.
+if test "$ac_unique_file" = "syshead.h" ; then
+ tree_structure_version="2.0"
+elif test "$ac_unique_file" = "src/openvpn/syshead.h" ; then
+ tree_structure_version="2.3"
+fi
+# Do not add more. New trees set the tree_structure_version directly, below.
+
+# tree_structure_version="5.7"
+AM_CONDITIONAL([TREE_VERSION_2_0], [test "$tree_structure_version" = "2.0"])
+AM_CONDITIONAL([TREE_VERSION_2_3], [test "$tree_structure_version" = "2.3"])
+AM_CONDITIONAL([TREE_VERSION_FUTURE_EXAMPLE], [test "$tree_structure_version" = "5.7"])
+# #################### END Tree-Structure Versioning ###########################
+
 # ######################## Feature Implementations ############################
 # 1. When work a new feature starts, add both an IMPLEMENTED_{FEATURE}
 #    conditional here, and a UNIT_TESTED_{FEATURE} further below, both set to
