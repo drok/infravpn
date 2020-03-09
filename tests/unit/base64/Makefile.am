@@ -16,9 +16,10 @@
 #  with this program; if not, write to the Free Software Foundation, Inc.,
 #  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
-AUTOMAKE_OPTIONS = color-tests parallel-tests
+AUTOMAKE_OPTIONS = color-tests parallel-tests nostdinc
 
 include $(top_srcdir)/tests/srcpaths.inc
+include $(top_srcdir)/tests/unit/rules.inc
 
 UUT = $(openvpn_srcdir)/base64.c
 
@@ -27,7 +28,28 @@ XFAIL_TESTS =
 
 # Force base64 to be built and tested even if the build configuration don't
 # use it. If it's implemented, it gets tested.
-activation_CPPFLAGS = -DSYSHEAD_H -DNTLM
+activation_CPPFLAGS = -DSYSHEAD_H
+
+# Mutators are pre-processor defines that alter the source code
+# They will be filtered out of the *local* config.h, and overriden
+# on a test-by-test basis.
+# List all the mutators you plan on testing (all that UUT depends on, hopefully)
+mutators = ENABLE_DEBUG
+
+if IMPLEMENTED_base64_2_0
+activation_CPPFLAGS += -DNTLM -DENABLE_HTTP_PROXY -DIMPLEMENTATION_2_0
+mutators += NTLM ENABLE_HTTP_PROXY
+endif
+
+if IMPLEMENTED_base64_2_2
+activation_CPPFLAGS += -DENABLE_HTTP_PROXY -DIMPLEMENTATION_2_2
+mutators += ENABLE_HTTP_PROXY
+endif
+
+if IMPLEMENTED_base64_2_3
+activation_CPPFLAGS += -DENABLE_HTTP_PROXY -DIMPLEMENTATION_2_3
+mutators += ENABLE_HTTP_PROXY
+endif
 
 # TEST_SUITE_LOG=blah.log
 
@@ -36,9 +58,6 @@ activation_CPPFLAGS = -DSYSHEAD_H -DNTLM
 # memory verification, and valgrind memcheck. It also tests some variety of
 # build configurations, with various features enabled or disabled, as is
 # appropriate for the Unit-under-test.
-# Specifically in the case of base64, there are no conditional compilation
-# options, but the -DNDEBUG and -DENABLE_DEBUG options are tested,
-# as an illustration as this is a template unit test.
 all_tests =	memleaks.memcheck \
 		ndebug.test \
 		debug.test
@@ -61,7 +80,7 @@ base_test_CPPFLAGS      = @TEST_CPPFLAGS@ \
 sanity_base64_test_CFLAGS    = $(base_test_CFLAGS)
 sanity_base64_test_LDADD     = $(base_test_LDADD)
 sanity_base64_test_SOURCES   = $(base_test_SOURCES)
-sanity_base64_test_CPPFLAGS  = $(base_test_CPPFLAGS)
+sanity_base64_test_CPPFLAGS  = -I$(top_builddir) $(base_test_CPPFLAGS)
 
 # -- Anything below this line can be reused as-is in most other tests ----------
 
@@ -69,14 +88,6 @@ if !ENABLE_UNITTESTS_ALL
 check_PROGRAMS = $(sanity_tests)
 else
 check_PROGRAMS = $(sanity_tests) $(all_tests)
-
-# Override $top_build_dir/config.h with local version so some defines can be
-# specified as CPPFLAGS
-BUILT_SOURCES = config.h
-CLEANFILES = config.h
-config.h : $(top_builddir)/config.h
-	$(SED) -r '/#define ENABLE_(DEBUG)/d' $< >$@
-
 
 # While base64 uses neither ASSERT() nor ENABLE_DEBUG, this example demonstrates
 # thorough testing, and the ability to find simple but impactful bugs very
@@ -100,7 +111,7 @@ ndebug_test_CFLAGS    = $(base_test_CFLAGS)
 ndebug_test_LDADD     = $(base_test_LDADD)
 ndebug_test_SOURCES   = $(base_test_SOURCES)
 ndebug_test_CPPFLAGS  = -DNDEBUG \
-			 $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
+			 -I. $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
 
 # Enabled debugging is not supposed to modify behaviour, but sometimes
 # active code is forgotten surrounded by #test ENABLE_DEBUG
@@ -109,12 +120,12 @@ debug_test_CFLAGS	= $(base_test_CFLAGS)
 debug_test_LDADD	= $(base_test_LDADD)
 debug_test_SOURCES     = $(base_test_SOURCES)
 debug_test_CPPFLAGS    = -DENABLE_DEBUG \
-			  $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
+			  -I. $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
 
 memleaks_memcheck_CFLAGS    = $(base_test_CFLAGS) $(memcheck_cflags)
 memleaks_memcheck_LDADD     = $(base_test_LDADD)
 memleaks_memcheck_SOURCES   = $(base_test_SOURCES)
-memleaks_memcheck_CPPFLAGS  = $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
+memleaks_memcheck_CPPFLAGS  = -I. $(base_test_CPPFLAGS) $(memcheck_cppflags) -DUNIT_TESTS_ALL
 endif
 
 TESTS = $(check_PROGRAMS)

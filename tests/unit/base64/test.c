@@ -9,6 +9,43 @@
 
 #include "base64.h"
 
+#if defined(NTLM)
+/* at v2.0 this was the enabling ifdef */
+#define IS_BUILT
+
+#elif defined(ENABLE_HTTP_PROXY) || defined(ENABLE_PKCS11)
+/* at v2.1 this was the enabling ifdef */
+#define IS_BUILT
+
+#elif defined(ENABLE_HTTP_PROXY) || defined(ENABLE_PKCS11) || defined(ENABLE_CLIENT_CR)
+/* at v2.2 this was the enabling ifdef
+ * After v2.2_RC2 (at commit cf696), the implementation changed
+ * _decode() has a third parameter, for buffer size.
+ */
+#define IS_BUILT
+
+#elif defined(ENABLE_HTTP_PROXY) || defined(ENABLE_PKCS11) || defined(ENABLE_CLIENT_CR) || defined(MANAGMENT_EXTERNAL_KEY)
+/* at v2.3 this was the enabling ifdef */
+/* Also at v2.3 commit a4da1, the implementation changed.
+ * The functions have an openvpn_ prefix now.
+ */
+#define IS_BUILT
+
+#else
+/* at v2.4 it was enabled unconditionally */
+#define IS_BUILT
+
+#endif
+
+#ifdef IMPLEMENTATION_2_0
+#define openvpn_base64_encode(src, len, dest)    base64_encode(src, len, dest)
+#define openvpn_base64_decode(src, dest, buflen) base64_decode(src, dest)
+#elif IMPLEMENTATION_2_2
+#define openvpn_base64_encode(src, len, dest)    base64_encode(src, len, dest)
+#define openvpn_base64_decode(src, dest, buflen) base64_decode(src, dest, buflen)
+#endif
+
+
 struct mystate {
   int has_data;
   char *plain_text;
@@ -36,8 +73,8 @@ static void test_encode(void **state) {
   assert_true (c->encoded_text == NULL);
   c->plain_text = "The quick fox...";
 
-#ifdef NTLM
-  int encoded_len = base64_encode(c->plain_text, strlen(c->plain_text), &c->encoded_text);
+#ifdef IS_BUILT
+  int encoded_len = openvpn_base64_encode(c->plain_text, strlen(c->plain_text), &c->encoded_text);
 
   msg(D_TEST_DEBUG, "_encode() outputs: '%s' (%d bytes), reports %d",
             c->encoded_text,
@@ -63,15 +100,16 @@ static void test_decode(void **state) {
   assert_true (c->plain_text != NULL);
   assert_true (c->encoded_text != NULL);
 
-#ifdef NTLM
-  /* there is an inherent bug here. If _decode() is buggy and outputs more
-   * data than it should, it will overflow the decode buffer.
+#ifdef IS_BUILT
+  /* there was an inherent bug here up to implementation 2.2:
+   * If _decode() was buggy and output more
+   * data than it should, it would overflow the decode buffer.
    * A more reasonable implementation would take a 3rd argument, size of output
    * buffer.
    * Then a test could be written to check that it doesn't overflow.
    *    assert_true (decoded_len < sizeof(c->decoded_text));
-   * But with this implementation, an overflow bug cannot be ruled out by testing,
-   * only by code review.
+   * But with this implementation (pre 2.2), an overflow bug could be ruled out
+   * by testing, only by code review.
    */
   int i;
   int decoded_len;
@@ -79,7 +117,7 @@ static void test_decode(void **state) {
 
   for (i = 0; i < 5; i++, bp++)
     {
-        decoded_len = base64_decode(c->encoded_text, &c->decoded_text);
+        decoded_len = openvpn_base64_decode(c->encoded_text, &c->decoded_text, sizeof(c->decoded_text));
 
         if (decoded_len >= 0 && decoded_len < sizeof (c->decoded_text) ) {
             c->decoded_text[decoded_len] = '\0';
@@ -151,7 +189,7 @@ do_getopt (int argc, char **argv)
 
 int main(int argc, char **argv) {
     const struct CMUnitTest tests[] = {
-#if defined(NTLM)
+#if defined(IS_BUILT)
         cmocka_unit_test(test_encode),
         cmocka_unit_test(test_decode),
 #endif
@@ -159,13 +197,13 @@ int main(int argc, char **argv) {
 
     int result;
 
-#if !defined(NTLM)
+#if !defined(IS_BUILT)
     dmsg(D_TEST_INFO, "This build configuration does not include base64 functions. Nothing to test");
 #endif
 
     do_getopt (argc, argv);
 
-#if defined(NTLM)
+#if defined(IS_BUILT)
     result = cmocka_run_group_tests_name("success_test", tests, setup, teardown);
 
     if (result == 255) /* Cmocka error, failed to test */
