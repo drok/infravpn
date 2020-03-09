@@ -34,4 +34,8 @@ dist_noinst_DATA = \
 
 if ENABLE_UNITTESTS
 
+if UNIT_TESTED_base64
+SUBDIRS += unit/base64
+endif
+
 endif

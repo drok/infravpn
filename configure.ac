@@ -137,6 +137,7 @@ AM_CONDITIONAL([TREE_VERSION_FUTURE_EXAMPLE], [test "$tree_structure_version" = 
 # SUBDIRS += unit/feature
 # endif
 
+AM_CONDITIONAL([IMPLEMENTED_base64], [test -f $(dirname "$srcdir/$ac_unique_file")/base64.c])
 # #################### End Feature Implementations ############################
 
 # ######################## Buildable Packages #################################
@@ -165,6 +166,10 @@ AC_CONFIG_FILES(tests/integration/does-it-build/Makefile)
 #   if UNIT_TESTED_feature
 #    openvpn_SOURCES += feature.c feature.h
 #   endif
+
+AM_COND_IF([IMPLEMENTED_base64],
+    [AC_CONFIG_FILES(tests/unit/base64/Makefile) implemented=yes])
+AM_CONDITIONAL([UNIT_TESTED_base64], [test "$implemented" = "yes" && unset implemented])
 
 # ################### End Feature Unit Tests ##################################
 
