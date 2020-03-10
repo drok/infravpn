@@ -147,6 +147,12 @@ AM_CONDITIONAL([IMPLEMENTED_base64_2_3],
     [test -f $(dirname "$srcdir/$ac_unique_file")/base64.c &&
     ${GREP} '^openvpn_base64_decode(const char \*str, void \*data, int size)$' $(dirname "$srcdir/$ac_unique_file")/base64.c >/dev/null])
 
+AM_CONDITIONAL([IMPLEMENTED_tls_crypt_2_4],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c &&
+    ! grep -qw '^tls_crypt_v2_write_client_key_file(const char \*filename$' $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c])
+AM_CONDITIONAL([IMPLEMENTED_tls_crypt_2_5],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c &&
+    grep -qw '^tls_crypt_v2_write_client_key_file(const char \*filename$' $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c])
 # #################### End Feature Implementations ############################
 
 # ######################## Buildable Packages #################################
@@ -182,6 +188,21 @@ AM_COND_IF([IMPLEMENTED_base64_2_3], [implemented=yes])
 AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/base64/Makefile)])
 AM_CONDITIONAL([UNIT_TESTED_base64], [test "$implemented" = "yes" && unset implemented])
 
+AM_COND_IF([IMPLEMENTED_tls_crypt_2_4], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_tls_crypt_2_5], [implemented=yes])
+#
+# NOTE: It is wrong to not test the tls_crypt implementation if the current build
+# configuration does not enable it. I am only demonstrating a straight-up port
+# of a unit test from tests/unit_tests to tests/unit. This is the old test-suite
+# behaviour, ie, if a feature is not used, it's not tested. If it's broken
+# by a patch, the breakage would only be noticed by whoever builds it with the
+# broken feature enable.
+# The next commit demonstrates how the tests/unit framework tests all the
+# implemented features, regardless if they are used or not in the build, in
+# "maintainer
+#
+AS_IF([test "$implemented" = "yes" -a "${enable_crypto}" != "no"], [AC_CONFIG_FILES(tests/unit/tls_crypt/Makefile)])
+AM_CONDITIONAL([UNIT_TESTED_tls_crypt], [test "$implemented" = "yes" && unset implemented && test "${enable_crypto}" != "no"])
 # ################### End Feature Unit Tests ##################################
 
 AC_ARG_ENABLE(

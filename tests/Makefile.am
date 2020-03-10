@@ -38,4 +38,8 @@ if UNIT_TESTED_base64
 SUBDIRS += unit/base64
 endif
 
+if UNIT_TESTED_tls_crypt
+SUBDIRS += unit/tls_crypt
+endif
+
 endif

@@ -21,14 +21,6 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#elif defined(_MSC_VER)
-#include "config-msvc.h"
-#endif
-
-#include "syshead.h"
-
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -36,10 +28,74 @@
 #include <string.h>
 #include <setjmp.h>
 #include <cmocka.h>
+#include <getopt.h>
 
-#include "tls_crypt.c"
+#if !defined(FIXED_IMPLEMENTATION_HEADER_INCLUDES)
+    /* I'm adding this here as a workaround for broken header include strategy
+     *
+     * syshead defines indirectly things like bool and uint8_t, but such things
+     * are not needed by the test implementation, they are required to be included
+     * before "tls_crypt.h" is included, otherwise it barfs.
+     *
+     * The proper way is for tls_crypt.h to include any definitions it requires.
+     * If that is the "syshead.h" kitchen sync, so be it, but this is very
+     * unlikely. A cursory Its pre-requisites
+     * are not necessarily the test's pre-requisites.
+     *
+     * This test.c file only needs to include "tls_crypt.h" to access the UUT.
+     * It's prerequisites are it's responsibility to ensure.
+     *
+     * If the tls_crypt implementation should be rewriten in the future, or
+     * a functionally equivalent version transplanted from another project,
+     * (ie, does not require things like "bool", "struct buffer", etc),
+     * this test should not need to be changed to include different prerequisites.
+     *
+     * Therefore, this test should be able to run any implementation equivalent
+     * to the present tls_crypt, as long as it's interface (function signatures
+     * and interface data structures) compatible with the tls_crypt interface
+     * specification. (ie, tls_crypt.h)
 
-#include "mock_msg.h"
+    #ifdef HAVE_CONFIG_H
+    #include "config.h"
+    #elif defined(_MSC_VER)
+    #include "config-msvc.h"
+    #endif
+
+    #include "syshead.h"
+     */
+
+    #include <stdbool.h> /* Needed by tls_crypt.h */
+
+    /* needed by session_id.h */
+    #ifdef HAVE_INTTYPES_H
+    #include <inttypes.h>
+    #elif defined(HAVE_STDINT_H)
+    #include <stdint.h>
+    #endif
+
+    #ifdef HAVE_NETDB_H
+        #include <netdb.h> /* needed by buffer.h */
+    #endif
+
+    /* needed by buffer.h */
+    #if defined(__GNUC__)
+    #define likely(x)       __builtin_expect((x),1)
+    #define unlikely(x)     __builtin_expect((x),0)
+    #else
+    #define likely(x)      (x)
+    #define unlikely(x)    (x)
+    #endif
+
+
+#endif
+
+#include "tls_crypt.h"
+
+#if defined(IMPLEMENTATION_2_4)
+/* Initial implementation at c6e24fa */
+#elif defined(IMPLEMENTATION_2_5)
+/* Functions implemented at 9d5902 */
+#endif
 
 #define TESTBUF_SIZE            128
 
@@ -49,6 +105,7 @@
 #define PARAM1      "param1"
 #define PARAM2      "param two"
 
+#if defined(IMPLEMENTATION_2_5)
 static const char *test_server_key = \
         "-----BEGIN OpenVPN tls-crypt-v2 server key-----\n"
         "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4v\n"
@@ -71,6 +128,7 @@ static const char *test_client_key = \
         "RZ+q17SC4nba3Pp8/Fs0+hSbv2tJozoD8SElFq7SIWJsciTYh8q8f5yQxjdt4Wxu\n"
         "/Z5wtPCAZ0tOzj4ItTI77fBOYRTfEayzHgEr\n"
         "-----END OpenVPN tls-crypt-v2 client key-----\n";
+#endif
 
 int
 __wrap_parse_line(const char *line, char **p, const int n, const char *file,
@@ -131,11 +189,16 @@ test_tls_crypt_setup(void **state) {
 
     struct key key = { 0 };
 
+#if defined(IMPLEMENTATION_2_4)
+/* code removed at 489c7bf93 goes here */
+#elif defined(IMPLEMENTATION_2_5)
     ctx->kt = tls_crypt_kt();
     if (!ctx->kt.cipher || !ctx->kt.digest)
     {
         return 0;
     }
+#endif
+
     init_key_ctx(&ctx->co.key_ctx_bi.encrypt, &key, &ctx->kt, true, "TEST");
     init_key_ctx(&ctx->co.key_ctx_bi.decrypt, &key, &ctx->kt, false, "TEST");
 
@@ -310,6 +373,7 @@ tls_crypt_ignore_replay(void **state) {
     assert_true(tls_crypt_unwrap(&ctx->ciphertext, &ctx->unwrapped, &ctx->co));
 }
 
+#if defined(IMPLEMENTATION_2_5)
 struct test_tls_crypt_v2_context {
     struct gc_arena gc;
     struct key2 server_key2;
@@ -534,9 +598,60 @@ test_tls_crypt_v2_write_client_key_file(void **state) {
     tls_crypt_v2_write_client_key_file(filename, NULL, INLINE_FILE_TAG,
                                        test_server_key);
 }
+#endif
+
+unsigned int verb = 0;
+
+/* Convenience breakpoint variable. Set a conditional breakpoint on any line
+ * in your debugger, on the condition that bp=={number}
+ * In verbose mode, messages print the value of bp at the time they were called.
+ * you can increment or change it anywhere state changes, and if you notice
+ * something amiss, place a breakpoint at that state value. It's useful for
+ * debugging the tests, stopping just before a section that is interesting to
+ * step through.
+ *
+ * You can also place a breakpoint on the cmocka function _fail to stop as soon
+ * as an assertion fails.
+ */
+unsigned int bp = 0;
+
+static void
+do_getopt (int argc, char **argv)
+{
+  int c;
+  while (1)
+    {
+      int option_index = 0;
+      static struct option long_options[] = {
+        {"verb", optional_argument, 0, 'v'},
+        {0, 0, 0, 0}
+      };
+
+      c = getopt_long (argc, argv, "v::",
+                       long_options, &option_index);
+      if (c == -1)
+        break;
+
+      switch (c)
+        {
+
+        case 'v': if (optarg)
+            verb = atoi (optarg);
+          else
+            verb++;
+          break;
+        case '?':
+          exit (1);
+          break;
+
+        default:
+          printf ("?? getopt returned character code 0%o ??\n", c);
+        }
+    }
+}
 
 int
-main(void) {
+main(int argc, char **argv) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(tls_crypt_loopback,
                                         test_tls_crypt_setup,
@@ -559,6 +674,7 @@ main(void) {
         cmocka_unit_test_setup_teardown(tls_crypt_ignore_replay,
                                         test_tls_crypt_setup,
                                         test_tls_crypt_teardown),
+#if defined(IMPLEMENTATION_2_5)
         cmocka_unit_test_setup_teardown(tls_crypt_v2_wrap_unwrap_no_metadata,
                                         test_tls_crypt_v2_setup,
                                         test_tls_crypt_v2_teardown),
@@ -576,7 +692,10 @@ main(void) {
                                         test_tls_crypt_v2_teardown),
         cmocka_unit_test(test_tls_crypt_v2_write_server_key_file),
         cmocka_unit_test(test_tls_crypt_v2_write_client_key_file),
+#endif
     };
+
+    do_getopt (argc, argv);
 
 #if defined(ENABLE_CRYPTO_OPENSSL)
     OpenSSL_add_all_algorithms();
@@ -588,5 +707,5 @@ main(void) {
     EVP_cleanup();
 #endif
 
-    return ret;
+    return !!ret;
 }
