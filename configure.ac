@@ -201,8 +201,8 @@ AM_COND_IF([IMPLEMENTED_tls_crypt_2_5], [implemented=yes])
 # implemented features, regardless if they are used or not in the build, in
 # "maintainer
 #
-AS_IF([test "$implemented" = "yes" -a "${enable_crypto}" != "no"], [AC_CONFIG_FILES(tests/unit/tls_crypt/Makefile)])
-AM_CONDITIONAL([UNIT_TESTED_tls_crypt], [test "$implemented" = "yes" && unset implemented && test "${enable_crypto}" != "no"])
+AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/tls_crypt/Makefile)])
+AM_CONDITIONAL([UNIT_TESTED_tls_crypt], [test "$implemented" = "yes" && unset implemented])
 # ################### End Feature Unit Tests ##################################
 
 AC_ARG_ENABLE(

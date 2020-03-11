@@ -97,6 +97,8 @@
 /* Functions implemented at 9d5902 */
 #endif
 
+#if ENABLE_CRYPTO
+
 #define TESTBUF_SIZE            128
 
 /* Defines for use in the tests and the mock parse_line() */
@@ -614,6 +616,7 @@ test_tls_crypt_v2_write_client_key_file(void **state) {
                                        test_server_key);
 }
 #endif
+#endif
 
 unsigned int verb = 0;
 
@@ -667,6 +670,7 @@ do_getopt (int argc, char **argv)
 
 int
 main(int argc, char **argv) {
+#if ENABLE_CRYPTO
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(tls_crypt_loopback,
                                         test_tls_crypt_setup,
@@ -709,6 +713,7 @@ main(int argc, char **argv) {
         cmocka_unit_test(test_tls_crypt_v2_write_client_key_file),
 #endif
     };
+#endif
 
     do_getopt (argc, argv);
 
@@ -716,11 +721,46 @@ main(int argc, char **argv) {
     OpenSSL_add_all_algorithms();
 #endif
 
+#if ENABLE_CRYPTO
     int ret = cmocka_run_group_tests_name("tls-crypt tests", tests, NULL, NULL);
+#endif
+
 
 #if defined(ENABLE_CRYPTO_OPENSSL)
     EVP_cleanup();
 #endif
 
+#if !defined(ENABLE_CRYPTO)
+    return AUTOMAKE_TEST_SKIPPED; /* Tell automake this test is SKIPPED */
+#else
+    if (ret == 255) /* Cmocka error, failed to test */
+      return AUTOMAKE_TEST_HARD_ERROR;
+#endif
+
+
+#if !defined(ENABLE_CRYPTO_OPENSSL) && !defined(ENABLE_CRYPTO_MBEDTLS)
+  #if defined(UNIT_TESTS_ALL)
+    /* Hard error means the test did not execute (ie, did not test) the unit
+     * (completely). Possible scenarios, if the defines are not setup to enable
+     * the UUT to be built, or unexpectedly running out of memory, or segmentation
+     * faults, or SIGINT.
+     *
+     * This test template only fails if the UUT is present but cannot be built
+     * due to missing NTLM define (which is a requirement for base64 to be built)
+     */
+    return AUTOMAKE_TEST_HARD_ERROR;
+  #else
+    /* This is a test template. When creating another unit test from it,
+     * some conditions may not make sense, eg, testing a Windows feature
+     * when the test is built for Linux.
+     * In that case, define TEST_DOES_NOT_MAKE_SENSE_HERE appropriately.
+     *
+     * In this particular case, base64, there is no such condition, this should
+     * be tested everywhere.
+     */
+    return AUTOMAKE_TEST_SKIPPED; /* Tell automake this test is SKIPPED */
+  #endif
+#else
     return !!ret;
+#endif
 }
