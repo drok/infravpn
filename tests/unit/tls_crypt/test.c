@@ -190,7 +190,22 @@ test_tls_crypt_setup(void **state) {
     struct key key = { 0 };
 
 #if defined(IMPLEMENTATION_2_4)
-/* code removed at 489c7bf93 goes here */
+/* code removed at 489c7bf93 tls-crypt: introduce tls_crypt_kt() */
+    ctx->kt.cipher = cipher_kt_get("AES-256-CTR");
+    ctx->kt.digest = md_kt_get("SHA256");
+    if (!ctx->kt.cipher)
+    {
+        printf("No AES-256-CTR support, skipping test.\n");
+        return 0;
+    }
+    if (!ctx->kt.digest)
+    {
+        printf("No HMAC-SHA256 support, skipping test.\n");
+        return 0;
+    }
+    ctx->kt.cipher_length = cipher_kt_key_size(ctx->kt.cipher);
+    ctx->kt.hmac_length = md_kt_size(ctx->kt.digest);
+
 #elif defined(IMPLEMENTATION_2_5)
     ctx->kt = tls_crypt_kt();
     if (!ctx->kt.cipher || !ctx->kt.digest)

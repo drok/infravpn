@@ -149,10 +149,10 @@ AM_CONDITIONAL([IMPLEMENTED_base64_2_3],
 
 AM_CONDITIONAL([IMPLEMENTED_tls_crypt_2_4],
     [test -f $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c &&
-    ! grep -qw '^tls_crypt_v2_write_client_key_file(const char \*filename$' $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c])
+    ! ${GREP} '^tls_crypt_v2_write_client_key_file(const char \*filename$' $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c >/dev/null])
 AM_CONDITIONAL([IMPLEMENTED_tls_crypt_2_5],
     [test -f $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c &&
-    grep -qw '^tls_crypt_v2_write_client_key_file(const char \*filename$' $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c])
+    ${GREP} '^tls_crypt_v2_write_client_key_file(const char \*filename$' $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c >/dev/null])
 # #################### End Feature Implementations ############################
 
 # ######################## Buildable Packages #################################
