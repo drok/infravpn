@@ -94,6 +94,24 @@ sanity_buffer_test_LDADD     = $(base_test_LDADD)
 sanity_buffer_test_SOURCES   = $(base_test_SOURCES)
 sanity_buffer_test_CPPFLAGS  = -I$(top_builddir) $(base_test_CPPFLAGS)
 
+if IMPLEMENTED_rfc4821
+
+all_tests += memleaks.buffer-rfc4821.memcheck \
+	    ndebug.buffer-rfc4821.test
+
+memleaks_buffer_rfc4821_memcheck_CFLAGS    = $(base_test_CFLAGS) $(memcheck_cflags)
+memleaks_buffer_rfc4821_memcheck_LDADD     = $(base_test_LDADD)
+memleaks_buffer_rfc4821_memcheck_SOURCES   = config.h test-rfc4821.c $(UUT)
+memleaks_buffer_rfc4821_memcheck_CPPFLAGS  = -I. $(base_test_CPPFLAGS) $(memcheck_cppflags)  -DUNIT_TESTS_ALL
+
+ndebug_buffer_rfc4821_test_CFLAGS    = $(base_test_CFLAGS)
+ndebug_buffer_rfc4821_test_LDADD     = $(base_test_LDADD)
+ndebug_buffer_rfc4821_test_SOURCES   = config.h test-rfc4821.c $(UUT)
+ndebug_buffer_rfc4821_test_CPPFLAGS  = -DNDEBUG \
+				    -I. $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
+
+endif
+
 # -- Anything below this line can be reused as-is in most other tests ----------
 
 if !ENABLE_UNITTESTS_ALL
