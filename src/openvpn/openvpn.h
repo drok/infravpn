@@ -493,6 +493,10 @@ struct context_2
 #ifdef MANAGEMENT_DEF_AUTH
   struct man_def_auth_context mda_context;
 #endif
+  
+  /* Quirk/bug management, bitfield with definition in quirks.h */
+  packet_id_type    has_bugfixes_v2;
+  
 };
 
 

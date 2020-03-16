@@ -29,6 +29,7 @@
 #endif
 
 #include "syshead.h"
+#include "quirks.h"
 
 #include "win32.h"
 #include "init.h"
@@ -3380,6 +3381,9 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
   const struct options *options = &c->options;
   const bool child = (c->mode == CM_CHILD_TCP || c->mode == CM_CHILD_UDP);
   int link_socket_mode = LS_MODE_DEFAULT;
+
+  /* Bug Maintenance */
+  c->c2.has_bugfixes_v2 = 0 BUGFIXES_V2(DEFINE_BITMAP);
 
   /* init garbage collection level */
   gc_init (&c->c2.gc);

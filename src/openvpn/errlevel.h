@@ -95,6 +95,7 @@
 
 #define D_SHOW_PARMS         LOGLEV(4, 50, 0)        /* show all parameters on program initiation */
 #define D_SHOW_OCC           LOGLEV(4, 51, 0)        /* show options compatibility string */
+#define D_SHOW_QUIRKS        LOGLEV(4, 51, 0)        /* show peer's quirks */
 #define D_LOW                LOGLEV(4, 52, 0)        /* miscellaneous low-frequency debug info */
 #define D_DHCP_OPT           LOGLEV(4, 53, 0)        /* show DHCP options binary string */
 #define D_MBUF               LOGLEV(4, 54, 0)        /* mbuf.[ch] routines */
