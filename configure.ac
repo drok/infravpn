@@ -211,5 +211,4 @@ AS_IF([test "${enable_unit_tests}" != "no"], [
     )
 ])
 
-
 AC_OUTPUT
