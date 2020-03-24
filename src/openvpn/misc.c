@@ -71,7 +71,6 @@ run_up_down (const char *command,
 #endif
 	     const char *dev_type,
 	     int tun_mtu,
-	     int link_mtu,
 	     const char *ifconfig_local,
 	     const char* ifconfig_remote,
 	     const char *context,
@@ -85,7 +84,6 @@ run_up_down (const char *command,
     setenv_str (es, "signal", signal_text);
   setenv_str (es, "script_context", context);
   setenv_int (es, "tun_mtu", tun_mtu);
-  setenv_int (es, "link_mtu", link_mtu);
   setenv_str (es, "dev", arg);
   if (dev_type)
     setenv_str (es, "dev_type", dev_type);
@@ -106,9 +104,9 @@ run_up_down (const char *command,
       struct argv argv = argv_new ();
       ASSERT (arg);
       argv_printf (&argv,
-		   "%s %d %d %s %s %s",
+		   "%s %d %s %s %s %s",
 		   arg,
-		   tun_mtu, link_mtu,
+		   tun_mtu, "",
 		   ifconfig_local, ifconfig_remote,
 		   context);
 
@@ -125,10 +123,10 @@ run_up_down (const char *command,
       ASSERT (arg);
       setenv_str (es, "script_type", script_type);
       argv_printf (&argv,
-		  "%sc %s %d %d %s %s %s",
+		  "%sc %s %d %s %s %s %s",
 		  command,
 		  arg,
-		  tun_mtu, link_mtu,
+		  tun_mtu, "",
 		  ifconfig_local, ifconfig_remote,
 		  context);
       argv_msg (M_INFO, &argv);

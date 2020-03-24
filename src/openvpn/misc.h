@@ -70,7 +70,6 @@ void run_up_down (const char *command,
 #endif
 		  const char *dev_type,
 		  int tun_mtu,
-		  int link_mtu,
 		  const char *ifconfig_local,
 		  const char* ifconfig_remote,
 		  const char *context,

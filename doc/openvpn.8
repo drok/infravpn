@@ -1789,13 +1789,13 @@ For
 .B \-\-dev tun
 execute as:
 
-.B cmd tun_dev tun_mtu link_mtu ifconfig_local_ip ifconfig_remote_ip [ init | restart ]
+.B cmd tun_dev tun_mtu "" ifconfig_local_ip ifconfig_remote_ip [ init | restart ]
 
 For
 .B \-\-dev tap
 execute as:
 
-.B cmd tap_dev tap_mtu link_mtu ifconfig_local_ip ifconfig_netmask [ init | restart ]
+.B cmd tap_dev tap_mtu "" ifconfig_local_ip ifconfig_netmask [ init | restart ]
 
 See the "Environmental Variables" section below for
 additional parameters passed as environmental variables.
@@ -6127,16 +6127,6 @@ of the
 and
 .B \-\-client\-disconnect
 scripts.
-.\"*********************************************************
-.TP
-.B link_mtu
-The maximum packet size (not including the IP header)
-of tunnel data in UDP tunnel transport mode.
-Set prior to
-.B \-\-up
-or
-.B \-\-down
-script execution.
 .\"*********************************************************
 .TP
 .B local
