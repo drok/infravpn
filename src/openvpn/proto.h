@@ -91,6 +91,7 @@ struct openvpn_iphdr {
   uint16_t   tot_len;
   uint16_t   id;
 
+# define OPENVPN_IP_DF 0x4000 /* dont fragment flag */
 # define OPENVPN_IP_OFFMASK 0x1fff
   uint16_t   frag_off;
 
