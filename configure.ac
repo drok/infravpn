@@ -169,8 +169,16 @@ AM_CONDITIONAL([IMPLEMENTED_buffer_2_4],
     [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
     ${GREP} '^gc_addspecial(void \*addr, void(free_function)(void \*), struct gc_arena \*a)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c >/dev/null])
 AM_CONDITIONAL([IMPLEMENTED_buffer_2_5],
-    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
-    ${GREP} '^buffer_write_file(const char \*filename, const struct buffer \*buf)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c >/dev/null])
+    [test -f $(dirname "$srcdir/$ac_unique_file")/base64.c &&
+    ${GREP} '^buffer_write_file(const char \*filename, const struct buffer \*buf)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c])
+
+AM_CONDITIONAL([IMPLEMENTED_mtu_2_0],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/mtu.c &&
+    ${GREP} '^frame_set_mtu_dynamic' $(dirname "$srcdir/$ac_unique_file")/mtu.c])
+AM_CONDITIONAL([IMPLEMENTED_mtu_2_4],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/mtu.c &&
+    ${GREP} '^frame_init_mssfix' $(dirname "$srcdir/$ac_unique_file")/mtu.c])
+AM_CONDITIONAL([IMPLEMENTED_mtu2], [false])
 # #################### End Feature Implementations ############################
 
 # ######################## Buildable Packages #################################
@@ -233,6 +241,12 @@ AM_COND_IF([IMPLEMENTED_buffer_2_4], [implemented=yes])
 AM_COND_IF([IMPLEMENTED_buffer_2_5], [implemented=yes])
 AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/buffer/Makefile)])
 AM_CONDITIONAL([UNIT_TESTED_buffer], [test "$implemented" = "yes" && unset implemented])
+
+AM_COND_IF([IMPLEMENTED_mtu_2_0], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_mtu_2_4], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_mtu2],    [implemented=yes])
+AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/mtu/Makefile)])
+AM_CONDITIONAL([UNIT_TESTED_mtu], [test "$implemented" = "yes" && unset implemented])
 # ################### End Feature Unit Tests ##################################
 
 AC_ARG_ENABLE(

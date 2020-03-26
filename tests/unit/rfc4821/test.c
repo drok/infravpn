@@ -29,7 +29,7 @@
 #include <string.h>
 #include <setjmp.h>
 #include <cmocka.h>
-
+#include <inttypes.h>
 #include <getopt.h>
 #include <math.h>
 
@@ -92,19 +92,19 @@ struct scenario
 
   struct
   {
-    int interface_mtu;
-    int start_mtu;
-    int end_mtu;
-    int mtu_increments;
-    int packet_loss;
-    int overhead;
+    uint16_t interface_mtu;
+    uint16_t start_mtu;
+    uint16_t end_mtu;
+    uint16_t mtu_increments;
+    uint16_t packet_loss;
+    uint16_t overhead;
     bool blackhole;
   } network;
 
   /* Connection */
   struct
   {
-    int overhead;
+    uint16_t overhead;
     bool first_probe;
     unsigned int num_probe;
     struct buffer buf;
@@ -113,7 +113,7 @@ struct scenario
   /* peer */
   struct
   {
-    int recv_buffer_size;
+    uint16_t recv_buffer_size;
   } peer;
     
   struct plpmtud pmtud_state;
@@ -323,8 +323,8 @@ test_rfc4821_pmtu_discovery (void **state)
   struct plpmtud *s = &sc->pmtud_state;
   struct buffer *buf = &sc->connection.buf;
 
-  size_t mtu;
-  size_t mtu_est = 0;
+  uint16_t mtu;
+  uint16_t mtu_est = 0;
 
   /* Each mtu loop simulates a different network condition.
    * A search is done for each condition, MTU is increased, and a new search
@@ -346,7 +346,7 @@ test_rfc4821_pmtu_discovery (void **state)
       assert_true (!wants_to_send &&
           "No probes transmitted before discovery is started");
 
-      msg (D_TEST_DEBUG, "Begin discovery cycle for MTU=%d", mtu);
+      msg (D_TEST_DEBUG, "Begin discovery cycle for MTU=%"PRIu16, mtu);
 
       plpmtud_start (s);
       assert_true (s->active == PMTUD_RESTING);
@@ -448,9 +448,9 @@ test_rfc4821_pmtu_discovery (void **state)
                       s->upper_bound - s->pmtu <= 2) &&
                     "_lostprobe() converges");
               if (s->active == PMTUD_DONE)
-                msg (D_TEST_DEBUG, "#%2u %5u Lost. Done. Final estimated PMTU=%u Actual PMTU=%u", pid, buf->len + sc->network.overhead, mtu_est, mtu);
+                msg (D_TEST_DEBUG, "#%2u %5"PRIu16" Lost. Done. Final estimated PMTU=%" PRIu16 " Actual PMTU=%" PRIu16, pid, buf->len + sc->network.overhead, mtu_est, mtu);
               else
-                msg (D_TEST_DEBUG, "#%2u %5u Lost. Next: %u", pid, buf->len + sc->network.overhead, s->cursor);
+                msg (D_TEST_DEBUG, "#%2u %5"PRIu16" Lost. Next: %"PRIu16, pid, buf->len + sc->network.overhead, s->cursor);
               
               assert_true ( (s->active == PMTUD_DONE || s->cursor < s->max_probe) &&
                     "Should not send max probe after 1st probe"
@@ -460,9 +460,9 @@ test_rfc4821_pmtu_discovery (void **state)
             {
               mtu_est = plpmtud_ack (s, buf->len + sc->network.overhead);
               if (s->active == PMTUD_DONE)
-                msg (D_TEST_DEBUG, "#%2u %5u Ack. Done. Final PMTU=%u Actual PMTU=%u", pid, buf->len + sc->network.overhead, mtu_est, mtu);
+                msg (D_TEST_DEBUG, "#%2u %5"PRIu16" Ack. Done. Final PMTU=%"PRIu16" Actual PMTU=%" PRIu16, pid, buf->len + sc->network.overhead, mtu_est, mtu);
               else
-                msg (D_TEST_DEBUG, "#%2u %5u Ack.  Next: %u", pid, buf->len + sc->network.overhead, s->cursor);
+                msg (D_TEST_DEBUG, "#%2u %5"PRIu16" Ack.  Next: %"PRIu16, pid, buf->len + sc->network.overhead, s->cursor);
               assert_true (mtu_est != 0);
               if (sc->network.packet_loss == 0)
                 {

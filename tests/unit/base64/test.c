@@ -76,7 +76,7 @@ static void test_encode(void **state) {
 #ifdef IS_BUILT
   int encoded_len = openvpn_base64_encode(c->plain_text, strlen(c->plain_text), &c->encoded_text);
 
-  msg(D_TEST_DEBUG, "_encode() outputs: '%s' (%d bytes), reports %d",
+  msg(D_TEST_DEBUG, "_encode() outputs: '%s' (%zd bytes), reports %d",
             c->encoded_text,
             strlen(c->encoded_text),
             encoded_len
@@ -121,7 +121,7 @@ static void test_decode(void **state) {
 
         if (decoded_len >= 0 && decoded_len < sizeof (c->decoded_text) ) {
             c->decoded_text[decoded_len] = '\0';
-            msg(D_TEST_DEBUG, "_decode() outputs: '%s' (%d bytes), reports %d",
+            msg(D_TEST_DEBUG, "_decode() outputs: '%s' (%zd bytes), reports %d",
                 c->decoded_text,
                 strlen(c->decoded_text),
                 decoded_len);
