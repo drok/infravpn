@@ -74,6 +74,10 @@ alloc_buf (size_t size)
   buf.data = calloc (1, size);
 #endif
   check_malloc_return(buf.data);
+#ifdef BUF_INIT_TRACKING
+  buf.debug_file = NULL;
+  buf.debug_line = 0;
+#endif
 
   return buf;
 }
@@ -98,6 +102,10 @@ alloc_buf_gc (size_t size, struct gc_arena *gc)
 #endif
   if (size)
     *buf.data = 0;
+#ifdef BUF_INIT_TRACKING
+  buf.debug_file = NULL;
+  buf.debug_line = 0;
+#endif
   return buf;
 }
 
@@ -119,6 +127,11 @@ clone_buf (const struct buffer* buf)
 #endif
   check_malloc_return (ret.data);
   memcpy (BPTR (&ret), BPTR (buf), BLEN (buf));
+#ifdef BUF_INIT_TRACKING
+  ret.debug_file = NULL;
+  ret.debug_line = 0;
+#endif
+
   return ret;
 }
 
@@ -630,6 +643,11 @@ string_alloc_buf (const char *str, struct gc_arena *gc)
 
   if (buf.len > 0) /* Don't count trailing '\0' as part of length */
     --buf.len;
+
+#ifdef BUF_INIT_TRACKING
+  buf.debug_file = NULL;
+  buf.debug_line = 0;
+#endif
 
   return buf;
 }
