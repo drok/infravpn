@@ -54,4 +54,8 @@ if UNIT_TESTED_buffer
 SUBDIRS += unit/buffer
 endif
 
+if ENABLE_UNITTESTS_ALL
+SUBDIRS += integration/does-it-build
+endif
+
 endif
