@@ -3,7 +3,7 @@ AUTOMAKE_OPTIONS = foreign
 test_binaries=
 
 if HAVE_LD_WRAP_SUPPORT
-test_binaries += argv_testdriver buffer_testdriver
+test_binaries += argv_testdriver
 endif
 
 test_binaries += crypto_testdriver packet_id_testdriver auth_token_testdriver ncp_testdriver
@@ -26,12 +26,6 @@ argv_testdriver_SOURCES = test_argv.c mock_msg.c mock_msg.h \
 	$(openvpn_srcdir)/platform.c \
 	$(openvpn_srcdir)/buffer.c \
 	$(openvpn_srcdir)/argv.c
-
-buffer_testdriver_CFLAGS  = @TEST_CFLAGS@ -I$(openvpn_srcdir) -I$(compat_srcdir)
-buffer_testdriver_LDFLAGS = @TEST_LDFLAGS@ -L$(openvpn_srcdir) -Wl,--wrap=parse_line
-buffer_testdriver_SOURCES = test_buffer.c mock_msg.c mock_msg.h \
-	mock_get_random.c \
-	$(openvpn_srcdir)/platform.c
 
 crypto_testdriver_CFLAGS  = @TEST_CFLAGS@ \
 	-I$(openvpn_includedir) -I$(compat_srcdir) -I$(openvpn_srcdir)

@@ -46,4 +46,8 @@ if UNIT_TESTED_rfc4821
 SUBDIRS += unit/rfc4821
 endif
 
+if UNIT_TESTED_buffer
+SUBDIRS += unit/buffer
+endif
+
 endif

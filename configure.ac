@@ -155,6 +155,22 @@ AM_CONDITIONAL([IMPLEMENTED_tls_crypt_2_5],
     ${GREP} '^tls_crypt_v2_write_client_key_file(const char \*filename$' $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c >/dev/null])
 
 AM_CONDITIONAL([IMPLEMENTED_rfc4821], [false])
+
+AM_CONDITIONAL([IMPLEMENTED_buffer_2_0],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
+    ${GREP} '^char_class (const char c, const unsigned int flags)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_buffer_2_2],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
+    ${GREP} '^char_class (const unsigned char c, const unsigned int flags)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_buffer_2_3],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
+    ${GREP} '^buf_puts(struct buffer \*buf, const char \*str)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_buffer_2_4],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
+    ${GREP} '^gc_addspecial(void \*addr, void(free_function)(void \*), struct gc_arena \*a)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_buffer_2_5],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
+    ${GREP} '^buffer_write_file(const char \*filename, const struct buffer \*buf)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c >/dev/null])
 # #################### End Feature Implementations ############################
 
 # ######################## Buildable Packages #################################
@@ -209,6 +225,14 @@ AM_CONDITIONAL([UNIT_TESTED_tls_crypt], [test "$implemented" = "yes" && unset im
 AM_COND_IF([IMPLEMENTED_rfc4821], [implemented=yes])
 AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/rfc4821/Makefile)])
 AM_CONDITIONAL([UNIT_TESTED_rfc4821], [test "$implemented" = "yes" && unset implemented])
+
+AM_COND_IF([IMPLEMENTED_buffer_2_0], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_buffer_2_2], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_buffer_2_3], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_buffer_2_4], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_buffer_2_5], [implemented=yes])
+AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/buffer/Makefile)])
+AM_CONDITIONAL([UNIT_TESTED_buffer], [test "$implemented" = "yes" && unset implemented])
 # ################### End Feature Unit Tests ##################################
 
 AC_ARG_ENABLE(
