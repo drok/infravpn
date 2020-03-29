@@ -467,23 +467,12 @@ main(int argc, char **argv)
          * repo
          */
 #elif defined(IMPLEMENTATION_2_3)
-        result = AUTOMAKE_TEST_HARD_ERROR;
-        /* Force human to check that the test is checking all available features
-         * in 2.3
-         * If this is are reading this, and have checked that all features that
-         * exist in 2.3 are enabled for testing, remove the result override in
-         * this section.
-         *
-         * If the ifdefs have left a feature untested, add this condition to the
-         * #if defined... for the wrongly skipped feature:
-         * "|| defined(IMPLEMENTATION_2_3)"
-         *
-         * If after checking, the test does not cover any functions in this
-         * branch, it's up to you to implement some tests.
-         *
-         * Then replace this comment with a note saying when 2.3 testing was
-         * validated, and commit the change, and cherry-pick it to the tests
-         * repo
+        /* 
+         * I checked that no test features are accidentally disabled in the 2.3
+         * branch. Ie, tests can can be performed in this branch, there are no
+         * blindspots. However, feature coverage is pretty low, only aggregate
+         * tests are done. More is needed.
+         * Ie, a fail is deserved, and a pass is also deserved (but not earned)
          */
 #elif defined(IMPLEMENTATION_2_2)
         result = AUTOMAKE_TEST_HARD_ERROR;
