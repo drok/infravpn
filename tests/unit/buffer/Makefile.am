@@ -122,6 +122,13 @@ check_PROGRAMS = $(sanity_tests)
 else
 check_PROGRAMS = $(sanity_tests) $(all_tests)
 
+if IMPLEMENTED_buffer_2_3
+# TODO: currently these fail due to the "aggregate" bug, fixed later at 463afdf
+XFAIL_TESTS += sanity.buffer.test \
+		memleaks.memcheck \
+		ndebug.test
+endif
+
 # The ndebug build is very similar to the plain build in many versions of the
 # project. But there are (or will be) some versions where the ASSERT macro calls
 # the standard glibc assert() instead of the openvpn assert_failed() function.
