@@ -36,12 +36,15 @@ mutators = ENABLE_DEBUG \
     ZERO_BUFFER_ON_ALLOC \
     DMALLOC \
     CHARACTER_CLASS_DEBUG \
-    ENABLE_BUFFER_LIST \
     BUF_INIT_TRACKING \
     VERIFY_ALIGNMENT
 
 if IMPLEMENTED_buffer_2_0
 activation_CPPFLAGS += -DIMPLEMENTATION_2_0
+# After 2.0, ENABLE_BUFFER_LIST is hardcoded in syshead.h, so it's no longer
+# a mutator. We can only mutate it in 2.0
+mutators += ENABLE_BUFFER_LIST
+mutate_ENABLE_BUFFER_LIST = -DENABLE_BUFFER_LIST
 endif
 
 if IMPLEMENTED_buffer_2_2
@@ -154,8 +157,8 @@ base_buffer_kitchen_sink_test_CPPFLAGS  = \
 				   -DZERO_BUFFER_ON_ALLOC \
 				   -DCHARACTER_CLASS_DEBUG \
 				   -DVERIFY_ALIGNMENT \
-				   -DENABLE_BUFFER_LIST \
-				   -DDMALLOC \
+				   $(mutate_ENABLE_BUFFER_LIST) \
+				   -DDMALLOC -D_HAVE_STRING_ARCH_strndup \
 			     -I. $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
 endif
 
