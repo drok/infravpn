@@ -568,7 +568,7 @@ socket_defined (const socket_descriptor_t sd)
 /*
  * Do we support Unix domain sockets?
  */
-#if defined(PF_UNIX) && !defined(WIN32)
+#if defined(HAVE_SYS_UN_H) && defined(PF_UNIX) && !defined(WIN32)
 #define UNIX_SOCK_SUPPORT 1
 #else
 #define UNIX_SOCK_SUPPORT 0
