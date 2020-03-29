@@ -98,15 +98,47 @@ common_sources = \
 # If any test is expected to fail (eg, new test, WIP, on TODO list), add it here
 XFAIL_TESTS =
 
-mutators = NDEBUG \
+# Build options/mutators which I have noticed in config.h, but have not yet
+# written a test to exercise. Maybe you can add some. Most such options
+# will cause test failures when exercised on their own, without other options
+# being enabled, but some fail when specific combinations are enabled.
+# Also, not all of these may exist in all releases. I picked them out of the
+# 2.3 release, but some may need to be moved further below, under a conditional
+# All these options are DISABLED in all current tests, they need to be
+# INDIVIDUALLY AND SPECIFICALLY ENABLED in order to test them.
+#
+# Others are HARDCODED in syshead.h; those have not been included here, since
+# they can't be turned off for an off/on test
+
+UNTESTED_mutators_TODO = \
+    ENABLE_DEF_AUTH \
+    ENABLE_FEATURE_TUN_PERSIST \
+    ENABLE_IPROUTE \
+    ENABLE_LZO_STUB \
+    ENABLE_MULTIHOME \
+    ENABLE_OFB_CFB_MODE \
+    ENABLE_PF \
+    ENABLE_PKCS11 \
+    ENABLE_PORT_SHARE \
+    ENABLE_SELINUX \
+    ENABLE_SYSTEMD \
+    ENABLE_X509ALTUSERNAME \
+    ENABLE_STRICT_OPTIONS_CHECK \
+    CRYPTO_MDEBUG \
+    DEFAULT_PKCS11_MODULE \
+    DMALLOC
+
+
+mutators = $(uNTESTED_mutators_TODO) \
+    NDEBUG \
     ENABLE_DEBUG \
+    ENABLE_SMALL \
     ENABLE_CLIENT_SERVER \
     ENABLE_CLIENT_ONLY \
-    ENABLE_FRAGMENT \
     ENABLE_MANAGEMENT \
-    ENABLE_SMALL \
-    ENABLE_PASSWORD_SAVE \
     ENABLE_HTTP_PROXY \
+    ENABLE_FRAGMENT \
+    ENABLE_PASSWORD_SAVE \
     ENABLE_SOCKS
 
 # Handle USE_ reorg at 2.3 where mutators were renamed from USE_{LZO,CRYPTO,SSL}
