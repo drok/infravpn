@@ -36,152 +36,156 @@ AM_CLIENT_LOG_FLAGS = -V "$(PACKAGE_STRING)" -C "--version"
 # Sources common to all releases of the project, and all buildables
 # (client/server/combo/util)
 common_sources = \
-	$(openvpn_srcdir)/base64.c			$(openvpn_srcdir)/base64.h \
-	$(openvpn_srcdir)/buffer.c			$(openvpn_srcdir)/buffer.h \
-	$(openvpn_srcdir)/crypto.c 			$(openvpn_srcdir)/crypto.h \
-	$(openvpn_srcdir)/error.c			$(openvpn_srcdir)/error.h \
-	$(openvpn_srcdir)/event.c			$(openvpn_srcdir)/event.h \
-	$(openvpn_srcdir)/fdmisc.c			$(openvpn_srcdir)/fdmisc.h \
-	$(openvpn_srcdir)/forward.c			$(openvpn_srcdir)/forward.h \
-										$(openvpn_srcdir)/forward-inline.h \
-	$(openvpn_srcdir)/fragment.c		$(openvpn_srcdir)/fragment.h \
-	$(openvpn_srcdir)/gremlin.c			$(openvpn_srcdir)/gremlin.h \
-	$(openvpn_srcdir)/helper.c			$(openvpn_srcdir)/helper.h \
-	$(openvpn_srcdir)/init.c			$(openvpn_srcdir)/init.h \
-	$(openvpn_srcdir)/interval.c		$(openvpn_srcdir)/interval.h \
-	$(openvpn_srcdir)/list.c 			$(openvpn_srcdir)/list.h \
-	$(openvpn_srcdir)/lzo.c 			$(openvpn_srcdir)/lzo.h \
-	$(openvpn_srcdir)/manage.c 			$(openvpn_srcdir)/manage.h \
-	$(openvpn_srcdir)/mbuf.c			$(openvpn_srcdir)/mbuf.h \
-	$(openvpn_srcdir)/misc.c 			$(openvpn_srcdir)/misc.h \
-	$(openvpn_srcdir)/mroute.c 			$(openvpn_srcdir)/mroute.h \
-	$(openvpn_srcdir)/mss.c 			$(openvpn_srcdir)/mss.h \
-	$(openvpn_srcdir)/mtcp.c 			$(openvpn_srcdir)/mtcp.h \
-	$(openvpn_srcdir)/mtu.c 			$(openvpn_srcdir)/mtu.h \
-	$(openvpn_srcdir)/mudp.c 			$(openvpn_srcdir)/mudp.h \
-	$(openvpn_srcdir)/multi.c 			$(openvpn_srcdir)/multi.h \
-	$(openvpn_srcdir)/ntlm.c 			$(openvpn_srcdir)/ntlm.h \
-	$(openvpn_srcdir)/occ.c 			$(openvpn_srcdir)/occ.h \
-										$(openvpn_srcdir)/occ-inline.h \
-	$(openvpn_srcdir)/openvpn.c 		$(openvpn_srcdir)/openvpn.h \
-	$(openvpn_srcdir)/options.c			$(openvpn_srcdir)/options.h \
-	$(openvpn_srcdir)/otime.c 			$(openvpn_srcdir)/otime.h \
-	$(openvpn_srcdir)/packet_id.c 		$(openvpn_srcdir)/packet_id.h \
-	$(openvpn_srcdir)/perf.c 			$(openvpn_srcdir)/perf.h \
-	$(openvpn_srcdir)/ping.c 			$(openvpn_srcdir)/ping.h \
-										$(openvpn_srcdir)/ping-inline.h \
-	$(openvpn_srcdir)/plugin.c 			$(openvpn_srcdir)/plugin.h \
-	$(openvpn_srcdir)/pool.c 			$(openvpn_srcdir)/pool.h \
-	$(openvpn_srcdir)/proto.c 			$(openvpn_srcdir)/proto.h \
-	$(openvpn_srcdir)/proxy.c 			$(openvpn_srcdir)/proxy.h \
-	$(openvpn_srcdir)/push.c 			$(openvpn_srcdir)/push.h \
-	$(openvpn_srcdir)/reliable.c 		$(openvpn_srcdir)/reliable.h \
-	$(openvpn_srcdir)/route.c 			$(openvpn_srcdir)/route.h \
-	$(openvpn_srcdir)/schedule.c 		$(openvpn_srcdir)/schedule.h \
-	$(openvpn_srcdir)/session_id.c 		$(openvpn_srcdir)/session_id.h \
-	$(openvpn_srcdir)/shaper.c      	$(openvpn_srcdir)/shaper.h \
-	$(openvpn_srcdir)/sig.c      		$(openvpn_srcdir)/sig.h \
-	$(openvpn_srcdir)/socket.c   		$(openvpn_srcdir)/socket.h \
-	$(openvpn_srcdir)/socks.c    		$(openvpn_srcdir)/socks.h \
-	$(openvpn_srcdir)/ssl.c      		$(openvpn_srcdir)/ssl.h \
-	$(openvpn_srcdir)/status.c   		$(openvpn_srcdir)/status.h \
-	$(openvpn_srcdir)/tun.c      		$(openvpn_srcdir)/tun.h \
-	$(openvpn_srcdir)/basic.h \
-	$(openvpn_srcdir)/circ_list.h \
-	$(openvpn_srcdir)/common.h \
-	$(openvpn_srcdir)/errlevel.h \
-	$(openvpn_srcdir)/integer.h \
-	$(openvpn_srcdir)/memdbg.h \
-	$(openvpn_srcdir)/openvpn-plugin.h \
-	$(openvpn_srcdir)/syshead.h
-	
+    $(openvpn_srcdir)/base64.c              $(openvpn_srcdir)/base64.h \
+    $(openvpn_srcdir)/buffer.c              $(openvpn_srcdir)/buffer.h \
+    $(openvpn_srcdir)/crypto.c              $(openvpn_srcdir)/crypto.h \
+    $(openvpn_srcdir)/error.c               $(openvpn_srcdir)/error.h \
+    $(openvpn_srcdir)/event.c               $(openvpn_srcdir)/event.h \
+    $(openvpn_srcdir)/fdmisc.c              $(openvpn_srcdir)/fdmisc.h \
+    $(openvpn_srcdir)/forward.c             $(openvpn_srcdir)/forward.h \
+                                            $(openvpn_srcdir)/forward-inline.h \
+    $(openvpn_srcdir)/fragment.c            $(openvpn_srcdir)/fragment.h \
+    $(openvpn_srcdir)/gremlin.c             $(openvpn_srcdir)/gremlin.h \
+    $(openvpn_srcdir)/helper.c              $(openvpn_srcdir)/helper.h \
+    $(openvpn_srcdir)/init.c                $(openvpn_srcdir)/init.h \
+    $(openvpn_srcdir)/interval.c            $(openvpn_srcdir)/interval.h \
+    $(openvpn_srcdir)/list.c                $(openvpn_srcdir)/list.h \
+    $(openvpn_srcdir)/lzo.c                 $(openvpn_srcdir)/lzo.h \
+    $(openvpn_srcdir)/manage.c              $(openvpn_srcdir)/manage.h \
+    $(openvpn_srcdir)/mbuf.c                $(openvpn_srcdir)/mbuf.h \
+    $(openvpn_srcdir)/misc.c                $(openvpn_srcdir)/misc.h \
+    $(openvpn_srcdir)/mroute.c              $(openvpn_srcdir)/mroute.h \
+    $(openvpn_srcdir)/mss.c                 $(openvpn_srcdir)/mss.h \
+    $(openvpn_srcdir)/mtcp.c                $(openvpn_srcdir)/mtcp.h \
+    $(openvpn_srcdir)/mtu.c                 $(openvpn_srcdir)/mtu.h \
+    $(openvpn_srcdir)/mudp.c                $(openvpn_srcdir)/mudp.h \
+    $(openvpn_srcdir)/multi.c               $(openvpn_srcdir)/multi.h \
+    $(openvpn_srcdir)/ntlm.c                $(openvpn_srcdir)/ntlm.h \
+    $(openvpn_srcdir)/occ.c                 $(openvpn_srcdir)/occ.h \
+                                            $(openvpn_srcdir)/occ-inline.h \
+    $(openvpn_srcdir)/openvpn.c             $(openvpn_srcdir)/openvpn.h \
+    $(openvpn_srcdir)/options.c             $(openvpn_srcdir)/options.h \
+    $(openvpn_srcdir)/otime.c               $(openvpn_srcdir)/otime.h \
+    $(openvpn_srcdir)/packet_id.c           $(openvpn_srcdir)/packet_id.h \
+    $(openvpn_srcdir)/perf.c                $(openvpn_srcdir)/perf.h \
+    $(openvpn_srcdir)/ping.c                $(openvpn_srcdir)/ping.h \
+                                            $(openvpn_srcdir)/ping-inline.h \
+    $(openvpn_srcdir)/plugin.c              $(openvpn_srcdir)/plugin.h \
+    $(openvpn_srcdir)/pool.c                $(openvpn_srcdir)/pool.h \
+    $(openvpn_srcdir)/proto.c               $(openvpn_srcdir)/proto.h \
+    $(openvpn_srcdir)/proxy.c               $(openvpn_srcdir)/proxy.h \
+    $(openvpn_srcdir)/push.c                $(openvpn_srcdir)/push.h \
+    $(openvpn_srcdir)/reliable.c            $(openvpn_srcdir)/reliable.h \
+    $(openvpn_srcdir)/route.c               $(openvpn_srcdir)/route.h \
+    $(openvpn_srcdir)/schedule.c            $(openvpn_srcdir)/schedule.h \
+    $(openvpn_srcdir)/session_id.c          $(openvpn_srcdir)/session_id.h \
+    $(openvpn_srcdir)/shaper.c              $(openvpn_srcdir)/shaper.h \
+    $(openvpn_srcdir)/sig.c                 $(openvpn_srcdir)/sig.h \
+    $(openvpn_srcdir)/socket.c              $(openvpn_srcdir)/socket.h \
+    $(openvpn_srcdir)/socks.c               $(openvpn_srcdir)/socks.h \
+    $(openvpn_srcdir)/ssl.c                 $(openvpn_srcdir)/ssl.h \
+    $(openvpn_srcdir)/status.c              $(openvpn_srcdir)/status.h \
+    $(openvpn_srcdir)/tun.c                 $(openvpn_srcdir)/tun.h \
+    $(openvpn_srcdir)/basic.h \
+    $(openvpn_srcdir)/circ_list.h \
+    $(openvpn_srcdir)/common.h \
+    $(openvpn_srcdir)/errlevel.h \
+    $(openvpn_srcdir)/integer.h \
+    $(openvpn_srcdir)/memdbg.h \
+    $(openvpn_srcdir)/openvpn-plugin.h \
+    $(openvpn_srcdir)/syshead.h
+    
 # If any test is expected to fail (eg, new test, WIP, on TODO list), add it here
 XFAIL_TESTS =
 
 mutators = NDEBUG \
-	ENABLE_DEBUG \
-	ENABLE_CLIENT_SERVER \
-	ENABLE_CLIENT_ONLY \
-	ENABLE_FRAGMENT \
-	ENABLE_MANAGEMENT \
-	ENABLE_SMALL \
-	ENABLE_PASSWORD_SAVE \
-	ENABLE_HTTP_PROXY \
-	ENABLE_SOCKS
+    ENABLE_DEBUG \
+    ENABLE_CLIENT_SERVER \
+    ENABLE_CLIENT_ONLY \
+    ENABLE_FRAGMENT \
+    ENABLE_MANAGEMENT \
+    ENABLE_SMALL \
+    ENABLE_PASSWORD_SAVE \
+    ENABLE_HTTP_PROXY \
+    ENABLE_SOCKS
 
 # Handle USE_ reorg at 2.3 where mutators were renamed from USE_{LZO,CRYPTO,SSL}
 # to ENABLE_{LZO,CRYPTO_SSL}
 if !INTEGRATED_openvpn_2_0
 # In 2.3 at bdae411, USE_LIBDL was replaced with ENABLE_PLUGIN
-mutators +=		    ENABLE_PLUGIN
-mutate_ENABLE_PLUGIN =	    -DENABLE_PLUGIN
+mutators +=                 ENABLE_PLUGIN
+mutate_ENABLE_PLUGIN =      -DENABLE_PLUGIN -I$(openvpn_includedir)
 
 # In 2.3 at 9b33b5a4b, USE_SSL and USE_CRYPTO were renamed ENABLE_*
-mutators +=		    ENABLE_CRYPTO ENABLE_CRYPTO_OPENSSL \
-			    ENABLE_CRYPTO_POLARSSL \
-			    ENABLE_SSL
+mutators +=                 ENABLE_CRYPTO ENABLE_CRYPTO_OPENSSL \
+                            ENABLE_CRYPTO_POLARSSL \
+                            ENABLE_SSL
 mutate_ENABLE_CRYPTO_1 =    -DENABLE_CRYPTO -DENABLE_CRYPTO_OPENSSL
 mutate_ENABLE_CRYPTO_2 =    -DENABLE_CRYPTO -DENABLE_CRYPTO_POLARSSL
-mutate_ENABLE_SSL =	    -DENABLE_SSL
+mutate_ENABLE_SSL =         -DENABLE_SSL
 
-mutate_CRYPTO_LIBS_1 =	    @OPENSSL_CRYPTO_LIBS@
-mutate_CRYPTO_LIBS_2 =	    @POLARSSL_LIBS@
+mutate_CRYPTO_LIBS_1 =      @OPENSSL_CRYPTO_LIBS@
+mutate_CRYPTO_LIBS_2 =      @POLARSSL_LIBS@
 
 mutate_SSL_LIBS_1 =         @OPENSSL_SSL_LIBS@
 mutate_SSL_LIBS_2 =         @POLARSSL_LIBS@
 
 # In 2.3 at 74bbc71b7, USE_LZO was renamed to ENABLE_LZO
-mutators +=		    ENABLE_LZO
-mutate_ENABLE_LZO =	    -DENABLE_LZO
+mutators +=                 ENABLE_LZO
+mutate_ENABLE_LZO =         -DENABLE_LZO
 
 # TODO: Add test for ENABLE_PUSH_PEER_INFO mutator added at 4f79d3ec (2.1.1 and 2.2)
 # Hardcoded in syshead.h
-# mutators +=		    ENABLE_PUSH_PEER_INFO
+# mutators +=           ENABLE_PUSH_PEER_INFO
 else
 
-mutators +=		    USE_LIBDL
-mutate_ENABLE_PLUGIN =	    -DUSE_LIBDL
+mutators +=                 USE_LIBDL
+mutate_ENABLE_PLUGIN =      -DUSE_LIBDL
 
-mutators +=		    USE_CRYPTO USE_SSL
+mutators +=                 USE_CRYPTO USE_SSL
 mutate_ENABLE_CRYPTO_1 =    -DUSE_CRYPTO
-mutate_ENABLE_SSL =	    -DUSE_SSL
+mutate_ENABLE_SSL =         -DUSE_SSL
 
-mutators +=		    ENABLE_LZO
-mutate_ENABLE_LZO =	    -DENABLE_LZO
+mutators +=                 ENABLE_LZO
+mutate_ENABLE_LZO =         -DENABLE_LZO
 
-mutate_CRYPTO_LIBS_1 =	    @CRYPTO_LIBS@
-mutate_SSL_LIBS_1 =	    @SSL_LIBS@
+mutate_CRYPTO_LIBS_1 =      @CRYPTO_LIBS@
+mutate_SSL_LIBS_1 =         @SSL_LIBS@
 endif
 
 # Sources variations for each version
 if !INTEGRATED_openvpn_2_0
 # Sources added after 2.0 but before last 2.1 revision
-common_sources += $(openvpn_srcdir)/clinat.c $(openvpn_srcdir)/clinat.h \
-		  $(openvpn_srcdir)/dhcp.c $(openvpn_srcdir)/dhcp.h \
-		  $(openvpn_srcdir)/lladdr.c $(openvpn_srcdir)/lladdr.h \
-		  $(openvpn_srcdir)/pf.c $(openvpn_srcdir)/pf.h \
-		  $(openvpn_srcdir)/ps.c $(openvpn_srcdir)/ps.h
+common_sources += \
+    $(openvpn_srcdir)/clinat.c              $(openvpn_srcdir)/clinat.h \
+    $(openvpn_srcdir)/dhcp.c                $(openvpn_srcdir)/dhcp.h \
+    $(openvpn_srcdir)/lladdr.c              $(openvpn_srcdir)/lladdr.h \
+    $(openvpn_srcdir)/pf.c                  $(openvpn_srcdir)/pf.h \
+    $(openvpn_srcdir)/ps.c                  $(openvpn_srcdir)/ps.h
 
 if !INTEGRATED_openvpn_2_1
 # Sources added after 2.1 but before last 2.2 revision
-common_sources += $(openvpn_srcdir)/httpdigest.c $(openvpn_srcdir)/httpdigest.h
+common_sources += \
+    $(openvpn_srcdir)/httpdigest.c          $(openvpn_srcdir)/httpdigest.h
 if !INTEGRATED_openvpn_2_2
 # Sources added after 2.2 but before last 2.3 revision
-common_sources += $(openvpn_srcdir)/platform.c $(openvpn_srcdir)/platform.h \
-		  $(openvpn_srcdir)/console.c $(openvpn_srcdir)/console.h \
-		  $(openvpn_srcdir)/crypto_openssl.c $(openvpn_srcdir)/crypto_openssl.h \
-		  $(openvpn_srcdir)/crypto_polarssl.c $(openvpn_srcdir)/crypto_polarssl.h \
-		  $(openvpn_srcdir)/crypto_backend.h \
-		  $(openvpn_srcdir)/mstats.c $(openvpn_srcdir)/mstats.h \
-		  $(openvpn_srcdir)/ssl_openssl.c $(openvpn_srcdir)/ssl_openssl.h \
-		  $(openvpn_srcdir)/ssl_polarssl.c $(openvpn_srcdir)/ssl_polarssl.h \
-		  $(openvpn_srcdir)/ssl_verify.c $(openvpn_srcdir)/ssl_verify.h \
-		  $(openvpn_srcdir)/ssl_verify_openssl.c $(openvpn_srcdir)/ssl_verify_openssl.h \
-		  $(openvpn_srcdir)/ssl_verify_polarssl.c $(openvpn_srcdir)/ssl_verify_polarssl.h
+common_sources += \
+    $(openvpn_srcdir)/platform.c            $(openvpn_srcdir)/platform.h \
+    $(openvpn_srcdir)/console.c             $(openvpn_srcdir)/console.h \
+    $(openvpn_srcdir)/crypto_openssl.c      $(openvpn_srcdir)/crypto_openssl.h \
+    $(openvpn_srcdir)/crypto_polarssl.c     $(openvpn_srcdir)/crypto_polarssl.h \
+    $(openvpn_srcdir)/crypto_backend.h \
+    $(openvpn_srcdir)/mstats.c              $(openvpn_srcdir)/mstats.h \
+    $(openvpn_srcdir)/ssl_openssl.c         $(openvpn_srcdir)/ssl_openssl.h \
+    $(openvpn_srcdir)/ssl_polarssl.c        $(openvpn_srcdir)/ssl_polarssl.h \
+    $(openvpn_srcdir)/ssl_verify.c          $(openvpn_srcdir)/ssl_verify.h \
+    $(openvpn_srcdir)/ssl_verify_openssl.c  $(openvpn_srcdir)/ssl_verify_openssl.h \
+    $(openvpn_srcdir)/ssl_verify_polarssl.c $(openvpn_srcdir)/ssl_verify_polarssl.h
 if INTEGRATED_ovpn_1_0
 # Sources added after 2.2 but before last ovpn/1.0 revision
-common_sources += $(openvpn_srcdir)/netlink.c $(openvpn_srcdir)/netlink.h \
-		  $(openvpn_srcdir)/balancer.c $(openvpn_srcdir)/balancer.h
+common_sources += \
+    $(openvpn_srcdir)/netlink.c             $(openvpn_srcdir)/netlink.h \
+    $(openvpn_srcdir)/balancer.c            $(openvpn_srcdir)/balancer.h
 endif
 if !INTEGRATED_openvpn_2_3
 # Sources added after 2.3 but before last 2.4 revision
@@ -208,90 +212,120 @@ else
 endif
 else
 # 2.1-only sources
+common_sources += \
+    $(openvpn_srcdir)/thread.c              $(openvpn_srcdir)/thread.h
 endif
 else
-# 2.0-sources
-common_sources += $(openvpn_srcdir)/thread.c $(openvpn_srcdir)/thread.h
+# 2.0-only sources
+common_sources += \
+    $(openvpn_srcdir)/thread.c              $(openvpn_srcdir)/thread.h
 endif
 
 
-combo_sources = $(common_sources)
+combo_sources =  $(common_sources)
 server_sources = $(common_sources)
 client_sources = $(common_sources)
-util_sources = $(common_sources)
+util_sources =   $(common_sources)
 
 # Integration tests to be run by developers/maintainers, --enable-unit-tests=all
-all_tests =	multi.combo \
-		multiclient.client \
-		easy.p2p \
-		multi.crypto.combo \
-		multi.crypto-lzo.combo \
-		multi.crypto-ssl-lzo.combo \
-		multi.crypto-ssl-lzo-plugins.combo \
-		multiclient.crypto-ssl-lzo-plugins.client \
-		multi.ndebug.combo \
-		easy.full.ndebug.p2p \
-		multi.full.ndebug.combo \
-		multi.full.debug.combo \
-		multi.full.ndebug.small.combo \
-		multiclient.full.ndebug.client \
-		multi.debug.combo
+all_tests = multi.combo \
+            multiclient.client \
+            easy.p2p \
+            multi.crypto.combo \
+            multi.crypto-lzo.combo \
+            multi.crypto-ssl-lzo.combo \
+            multi.crypto-ssl-lzo-plugins.combo \
+            multiclient.crypto-ssl-lzo-plugins.client \
+            multi.ndebug.combo \
+            easy.full.ndebug.p2p \
+            multi.full.ndebug.combo \
+            multi.full.debug.combo \
+            multi.full.ndebug.small.combo \
+            multiclient.full.ndebug.client \
+            multi.debug.combo
 
 # FIXME: Fix compile warnings and enable strict integration test w/-Wall -Werror
-base_CFLAGS        = -Wall
-base_LDADD         = @WIN32_LIBS@
-base_CPPFLAGS      = 	-I$(openvpn_srcdir) \
-			-I$(compat_srcdir)
+base_CFLAGS        =                        -Wall
+base_LDADD         =                        @WIN32_LIBS@
+base_CPPFLAGS      =                        -I$(openvpn_srcdir) \
+                                            -I$(compat_srcdir)
 
 if ENABLE_UNITTESTS_ALL
 
-multi_combo_CFLAGS    = $(base_CFLAGS)
-multi_combo_LDADD     = $(base_LDADD)
-multi_combo_SOURCES   = $(combo_sources)
-multi_combo_CPPFLAGS  = -DENABLE_CLIENT_SERVER \
-							-I. $(base_CPPFLAGS)
+multi_combo_CFLAGS    =                     $(base_CFLAGS)
+multi_combo_LDADD     =                     $(base_LDADD)
+multi_combo_SOURCES   =                     $(combo_sources)
+multi_combo_CPPFLAGS  =                     -DENABLE_CLIENT_SERVER \
+                                            -I. $(base_CPPFLAGS)
 
-multiclient_client_CFLAGS    = $(base_CFLAGS)
-multiclient_client_LDADD     = $(base_LDADD)
-multiclient_client_SOURCES   = $(client_sources)
-multiclient_client_CPPFLAGS  = -DENABLE_CLIENT_SERVER -DENABLE_CLIENT_ONLY \
-							-I. $(base_CPPFLAGS)
+multiclient_client_CFLAGS    =              $(base_CFLAGS)
+multiclient_client_LDADD     =              $(base_LDADD)
+multiclient_client_SOURCES   =              $(client_sources)
+multiclient_client_CPPFLAGS  =              -DENABLE_CLIENT_SERVER \
+                                            -DENABLE_CLIENT_ONLY \
+                                            -I. $(base_CPPFLAGS)
 
-easy_p2p_CFLAGS    = $(base_CFLAGS)
-easy_p2p_LDADD     = $(base_LDADD)
-easy_p2p_SOURCES   = $(client_sources)
-easy_p2p_CPPFLAGS  = \
-							-I. $(base_CPPFLAGS)
+easy_p2p_CFLAGS    =                        $(base_CFLAGS)
+easy_p2p_LDADD     =                        $(base_LDADD)
+easy_p2p_SOURCES   =                        $(client_sources)
+easy_p2p_CPPFLAGS  =                        -I. $(base_CPPFLAGS)
 
-multi_crypto_combo_CFLAGS    = $(base_CFLAGS)
-multi_crypto_combo_LDADD     = $(base_LDADD) $(mutate_CRYPTO_LIBS_1)
-multi_crypto_combo_SOURCES   = $(server_sources)
-multi_crypto_combo_CPPFLAGS  = -DENABLE_CLIENT_SERVER $(mutate_ENABLE_CRYPTO_1) \
-				-I. $(base_CPPFLAGS)
+multi_crypto_combo_CFLAGS    =              $(base_CFLAGS)
+multi_crypto_combo_LDADD     =              $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_1)
+multi_crypto_combo_SOURCES   =              $(server_sources)
+multi_crypto_combo_CPPFLAGS  =              -DENABLE_CLIENT_SERVER \
+                                            $(mutate_ENABLE_CRYPTO_1) \
+                                            -I. $(base_CPPFLAGS)
 
-multi_crypto_lzo_combo_CFLAGS    = $(base_CFLAGS)
-multi_crypto_lzo_combo_LDADD     = $(base_LDADD) $(mutate_CRYPTO_LIBS_1) @LZO_LIBS@
-multi_crypto_lzo_combo_SOURCES   = $(server_sources)
-multi_crypto_lzo_combo_CPPFLAGS  = -DENABLE_CLIENT_SERVER $(mutate_ENABLE_CRYPTO_1) $(mutate_ENABLE_LZO) \
-				-I. $(base_CPPFLAGS)
+multi_crypto_lzo_combo_CFLAGS    =          $(base_CFLAGS)
+multi_crypto_lzo_combo_LDADD     =          $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_1) \
+                                            @LZO_LIBS@
+multi_crypto_lzo_combo_SOURCES   =          $(server_sources)
+multi_crypto_lzo_combo_CPPFLAGS  =          -DENABLE_CLIENT_SERVER \
+                                            $(mutate_ENABLE_CRYPTO_1) \
+                                            $(mutate_ENABLE_LZO) \
+                                            -I. $(base_CPPFLAGS)
 
-multi_crypto_ssl_lzo_combo_CFLAGS    = $(base_CFLAGS)
-multi_crypto_ssl_lzo_combo_LDADD     = $(base_LDADD) $(mutate_CRYPTO_LIBS_1) $(mutate_SSL_LIBS_1) @LZO_LIBS@
-multi_crypto_ssl_lzo_combo_SOURCES   = $(server_sources)
-multi_crypto_ssl_lzo_combo_CPPFLAGS  = -DENABLE_CLIENT_SERVER $(mutate_ENABLE_CRYPTO_1) $(mutate_ENABLE_SSL) $(mutate_ENABLE_LZO) \
-				-I. $(base_CPPFLAGS)
+multi_crypto_ssl_lzo_combo_CFLAGS    =      $(base_CFLAGS)
+multi_crypto_ssl_lzo_combo_LDADD     =      $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_1) \
+                                            $(mutate_SSL_LIBS_1) \
+                                            @LZO_LIBS@
+multi_crypto_ssl_lzo_combo_SOURCES   =      $(server_sources)
+multi_crypto_ssl_lzo_combo_CPPFLAGS  =      -DENABLE_CLIENT_SERVER \
+                                            $(mutate_ENABLE_CRYPTO_1) \
+                                            $(mutate_ENABLE_SSL) \
+                                            $(mutate_ENABLE_LZO) \
+                                            -I. $(base_CPPFLAGS)
 
-multi_crypto_ssl_lzo_plugins_combo_CFLAGS    = $(base_CFLAGS)
-multi_crypto_ssl_lzo_plugins_combo_LDADD     = $(base_LDADD) $(mutate_CRYPTO_LIBS_1) $(mutate_SSL_LIBS_1) @LZO_LIBS@
-multi_crypto_ssl_lzo_plugins_combo_SOURCES   = $(server_sources)
-multi_crypto_ssl_lzo_plugins_combo_CPPFLAGS  = -DENABLE_CLIENT_SERVER $(mutate_ENABLE_CRYPTO_1) $(mutate_ENABLE_SSL) $(mutate_ENABLE_LZO) $(mutate_ENABLE_PLUGIN) \
-				-I. $(base_CPPFLAGS) -I$(openvpn_includedir)
+multi_crypto_ssl_lzo_plugins_combo_CFLAGS    =       $(base_CFLAGS)
+multi_crypto_ssl_lzo_plugins_combo_LDADD     =       $(base_LDADD) \
+                                                     $(mutate_CRYPTO_LIBS_1) \
+                                                     $(mutate_SSL_LIBS_1) \
+                                                     @LZO_LIBS@
+multi_crypto_ssl_lzo_plugins_combo_SOURCES   =       $(server_sources)
+multi_crypto_ssl_lzo_plugins_combo_CPPFLAGS  =       -DENABLE_CLIENT_SERVER \
+                                                     $(mutate_ENABLE_CRYPTO_1) \
+                                                     $(mutate_ENABLE_SSL) \
+                                                     $(mutate_ENABLE_LZO) \
+                                                     $(mutate_ENABLE_PLUGIN) \
+                                                     -I. $(base_CPPFLAGS)
 
-multiclient_crypto_ssl_lzo_plugins_client_CFLAGS    = $(base_CFLAGS)
-multiclient_crypto_ssl_lzo_plugins_client_LDADD     = $(base_LDADD) $(mutate_CRYPTO_LIBS_1) $(mutate_SSL_LIBS_1) @LZO_LIBS@
-multiclient_crypto_ssl_lzo_plugins_client_SOURCES   = $(server_sources)
-multiclient_crypto_ssl_lzo_plugins_client_CPPFLAGS  = -DENABLE_CLIENT_SERVER -DENABLE_CLIENT_ONLY $(mutate_ENABLE_CRYPTO_1) $(mutate_ENABLE_SSL) $(mutate_ENABLE_LZO) $(mutate_ENABLE_PLUGIN) \
-				-I. $(base_CPPFLAGS) -I$(openvpn_includedir)
+multiclient_crypto_ssl_lzo_plugins_client_CFLAGS =   $(base_CFLAGS)
+multiclient_crypto_ssl_lzo_plugins_client_LDADD =    $(base_LDADD) \
+                                                     $(mutate_CRYPTO_LIBS_1) \
+                                                     $(mutate_SSL_LIBS_1) \
+                                                     @LZO_LIBS@
+multiclient_crypto_ssl_lzo_plugins_client_SOURCES = $(server_sources)
+multiclient_crypto_ssl_lzo_plugins_client_CPPFLAGS=  -DENABLE_CLIENT_SERVER \
+                                                     -DENABLE_CLIENT_ONLY \
+                                                     $(mutate_ENABLE_CRYPTO_1) \
+                                                     $(mutate_ENABLE_SSL) \
+                                                     $(mutate_ENABLE_LZO) \
+                                                     $(mutate_ENABLE_PLUGIN) \
+                                                     -I. $(base_CPPFLAGS)
 
 
 # The ndebug build is very similar to the plain build in many versions of the
@@ -302,65 +336,138 @@ multiclient_crypto_ssl_lzo_plugins_client_CPPFLAGS  = -DENABLE_CLIENT_SERVER -DE
 # in the test branch would leave other source branches vulnerable/blind
 # to bugs like ASSERT() that modify state.
 # TDLR: Do not remove the _ndebug_ tests.
-multi_ndebug_combo_CFLAGS    = $(base_CFLAGS)
-multi_ndebug_combo_LDADD     = $(base_LDADD) $(mutate_CRYPTO_LIBS_1) $(mutate_SSL_LIBS_1) @LZO_LIBS@
-multi_ndebug_combo_SOURCES   = $(combo_sources)
-multi_ndebug_combo_CPPFLAGS  = -DNDEBUG -DENABLE_CLIENT_SERVER $(mutate_ENABLE_CRYPTO_1) $(mutate_ENABLE_SSL) $(mutate_ENABLE_LZO) $(mutate_ENABLE_PLUGIN) \
-								-I. $(base_CPPFLAGS) -I$(openvpn_includedir)
+multi_ndebug_combo_CFLAGS    =              $(base_CFLAGS)
+multi_ndebug_combo_LDADD     =              $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_1) \
+                                            $(mutate_SSL_LIBS_1) \
+                                            @LZO_LIBS@
+multi_ndebug_combo_SOURCES   =              $(combo_sources)
+multi_ndebug_combo_CPPFLAGS  =              -DNDEBUG \
+                                            -DENABLE_CLIENT_SERVER \
+                                            $(mutate_ENABLE_CRYPTO_1) \
+                                            $(mutate_ENABLE_SSL) \
+                                            $(mutate_ENABLE_LZO) \
+                                            $(mutate_ENABLE_PLUGIN) \
+                                            -I. $(base_CPPFLAGS)
 
 # Plugins enabled, but not multi. @LD_LIBS@ must not be required to build
-easy_full_ndebug_p2p_CFLAGS    = $(base_CFLAGS)
-easy_full_ndebug_p2p_LDADD     = $(base_LDADD) $(mutate_CRYPTO_LIBS_1) $(mutate_SSL_LIBS_1) @LZO_LIBS@
-easy_full_ndebug_p2p_SOURCES   = $(combo_sources)
-easy_full_ndebug_p2p_CPPFLAGS  = -DNDEBUG $(mutate_ENABLE_CRYPTO_1) $(mutate_ENABLE_SSL) $(mutate_ENABLE_LZO) $(mutate_ENABLE_PLUGIN) \
-    -DENABLE_FRAGMENT -DENABLE_MANAGEMENT -DENABLE_PASSWORD_SAVE -DENABLE_HTTP_PROXY -DENABLE_SOCKS \
-								-I. $(base_CPPFLAGS) -I$(openvpn_includedir)
+easy_full_ndebug_p2p_CFLAGS    =            $(base_CFLAGS)
+easy_full_ndebug_p2p_LDADD     =            $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_1) \
+                                            $(mutate_SSL_LIBS_1) \
+                                            @LZO_LIBS@
+easy_full_ndebug_p2p_SOURCES   =            $(combo_sources)
+easy_full_ndebug_p2p_CPPFLAGS  =            -DNDEBUG \
+                                            $(mutate_ENABLE_CRYPTO_1) \
+                                            $(mutate_ENABLE_SSL) \
+                                            $(mutate_ENABLE_LZO) \
+                                            $(mutate_ENABLE_PLUGIN) \
+                                            -DENABLE_FRAGMENT \
+                                            -DENABLE_MANAGEMENT \
+                                            -DENABLE_PASSWORD_SAVE \
+                                            -DENABLE_HTTP_PROXY \
+                                            -DENABLE_SOCKS \
+                                            -I. $(base_CPPFLAGS)
 
 # Kitchen sink. Everything is enabled. Combo
-multi_full_ndebug_combo_CFLAGS    = $(base_CFLAGS)
-multi_full_ndebug_combo_LDADD     = $(base_LDADD) $(mutate_CRYPTO_LIBS_1) $(mutate_SSL_LIBS_1) @LZO_LIBS@
-multi_full_ndebug_combo_SOURCES   = $(combo_sources)
-multi_full_ndebug_combo_CPPFLAGS  = -DNDEBUG $(mutate_ENABLE_CRYPTO_1) $(mutate_ENABLE_SSL) $(mutate_ENABLE_LZO) $(mutate_ENABLE_PLUGIN) \
-	-DENABLE_CLIENT_SERVER \
-    -DENABLE_FRAGMENT -DENABLE_MANAGEMENT -DENABLE_PASSWORD_SAVE -DENABLE_HTTP_PROXY -DENABLE_SOCKS \
-								-I. $(base_CPPFLAGS) -I$(openvpn_includedir)
+multi_full_ndebug_combo_CFLAGS    =         $(base_CFLAGS)
+multi_full_ndebug_combo_LDADD     =         $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_1) \
+                                            $(mutate_SSL_LIBS_1) \
+                                            @LZO_LIBS@
+multi_full_ndebug_combo_SOURCES   =         $(combo_sources)
+multi_full_ndebug_combo_CPPFLAGS  =         -DNDEBUG \
+                                            $(mutate_ENABLE_CRYPTO_1) \
+                                            $(mutate_ENABLE_SSL) \
+                                            $(mutate_ENABLE_LZO) \
+                                            $(mutate_ENABLE_PLUGIN) \
+                                            -DENABLE_CLIENT_SERVER \
+                                            -DENABLE_FRAGMENT \
+                                            -DENABLE_MANAGEMENT \
+                                            -DENABLE_PASSWORD_SAVE \
+                                            -DENABLE_HTTP_PROXY \
+                                            -DENABLE_SOCKS \
+                                            -I. $(base_CPPFLAGS)
 
 # Kitchen sink. Everything is enabled. Combo, Small build
 # Closest to a swiss army knife, production build (no debug code)
-multi_full_ndebug_small_combo_CFLAGS    = $(base_CFLAGS)
-multi_full_ndebug_small_combo_LDADD     = $(base_LDADD) $(mutate_CRYPTO_LIBS_1) $(mutate_SSL_LIBS_1) @LZO_LIBS@
-multi_full_ndebug_small_combo_SOURCES   = $(combo_sources)
-multi_full_ndebug_small_combo_CPPFLAGS  = -DNDEBUG -DENABLE_SMALL $(mutate_ENABLE_CRYPTO_1) $(mutate_ENABLE_SSL) $(mutate_ENABLE_LZO) $(mutate_ENABLE_PLUGIN) \
-	-DENABLE_CLIENT_SERVER \
-    -DENABLE_FRAGMENT -DENABLE_MANAGEMENT -DENABLE_PASSWORD_SAVE -DENABLE_HTTP_PROXY -DENABLE_SOCKS \
-								-I. $(base_CPPFLAGS) -I$(openvpn_includedir)
+multi_full_ndebug_small_combo_CFLAGS    =   $(base_CFLAGS)
+multi_full_ndebug_small_combo_LDADD     =   $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_1) \
+                                            $(mutate_SSL_LIBS_1) \
+                                            @LZO_LIBS@
+multi_full_ndebug_small_combo_SOURCES   =   $(combo_sources)
+multi_full_ndebug_small_combo_CPPFLAGS  =   -DNDEBUG \
+                                            -DENABLE_SMALL \
+                                            $(mutate_ENABLE_CRYPTO_1) \
+                                            $(mutate_ENABLE_SSL) \
+                                            $(mutate_ENABLE_LZO) \
+                                            $(mutate_ENABLE_PLUGIN) \
+                                            -DENABLE_CLIENT_SERVER \
+                                            -DENABLE_FRAGMENT \
+                                            -DENABLE_MANAGEMENT \
+                                            -DENABLE_PASSWORD_SAVE \
+                                            -DENABLE_HTTP_PROXY \
+                                            -DENABLE_SOCKS \
+                                            -I. $(base_CPPFLAGS)
 
 # Kitchen sink. Everything is enabled. Combo, Debug build
-multi_full_debug_combo_CFLAGS    = $(base_CFLAGS)
-multi_full_debug_combo_LDADD     = $(base_LDADD) $(mutate_CRYPTO_LIBS_1) $(mutate_SSL_LIBS_1) @LZO_LIBS@
-multi_full_debug_combo_SOURCES   = $(combo_sources)
-multi_full_debug_combo_CPPFLAGS  = -DENABLE_DEBUG $(mutate_ENABLE_CRYPTO_1) $(mutate_ENABLE_SSL) $(mutate_ENABLE_LZO) $(mutate_ENABLE_PLUGIN) \
-	-DENABLE_CLIENT_SERVER \
-    -DENABLE_FRAGMENT -DENABLE_MANAGEMENT -DENABLE_PASSWORD_SAVE -DENABLE_HTTP_PROXY -DENABLE_SOCKS \
-								-I. $(base_CPPFLAGS) -I$(openvpn_includedir)
+multi_full_debug_combo_CFLAGS    =          $(base_CFLAGS)
+multi_full_debug_combo_LDADD     =          $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_1) \
+                                            $(mutate_SSL_LIBS_1) \
+                                            @LZO_LIBS@
+multi_full_debug_combo_SOURCES   =          $(combo_sources)
+multi_full_debug_combo_CPPFLAGS  =          -DENABLE_DEBUG \
+                                            $(mutate_ENABLE_CRYPTO_1) \
+                                            $(mutate_ENABLE_SSL) \
+                                            $(mutate_ENABLE_LZO) \
+                                            $(mutate_ENABLE_PLUGIN) \
+                                            -DENABLE_CLIENT_SERVER \
+                                            -DENABLE_FRAGMENT \
+                                            -DENABLE_MANAGEMENT \
+                                            -DENABLE_PASSWORD_SAVE \
+                                            -DENABLE_HTTP_PROXY \
+                                            -DENABLE_SOCKS \
+                                            -I. $(base_CPPFLAGS)
 
 # Kitchen sink. Everything is enabled, client only
-multiclient_full_ndebug_client_CFLAGS    = $(base_CFLAGS)
-multiclient_full_ndebug_client_LDADD     = $(base_LDADD) $(mutate_CRYPTO_LIBS_1) $(mutate_SSL_LIBS_1) @LZO_LIBS@
-multiclient_full_ndebug_client_SOURCES   = $(combo_sources)
-multiclient_full_ndebug_client_CPPFLAGS  = -DNDEBUG $(mutate_ENABLE_CRYPTO_1) $(mutate_ENABLE_SSL) $(mutate_ENABLE_LZO) $(mutate_ENABLE_PLUGIN) \
-	-DENABLE_CLIENT_SERVER -DENABLE_CLIENT_ONLY \
-    -DENABLE_FRAGMENT -DENABLE_MANAGEMENT -DENABLE_PASSWORD_SAVE -DENABLE_HTTP_PROXY -DENABLE_SOCKS \
-								-I. $(base_CPPFLAGS) -I$(openvpn_includedir)
+multiclient_full_ndebug_client_CFLAGS    =  $(base_CFLAGS)
+multiclient_full_ndebug_client_LDADD     =  $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_1) \
+                                            $(mutate_SSL_LIBS_1) \
+                                            @LZO_LIBS@
+multiclient_full_ndebug_client_SOURCES   =  $(combo_sources)
+multiclient_full_ndebug_client_CPPFLAGS  =  -DNDEBUG \
+                                            $(mutate_ENABLE_CRYPTO_1) \
+                                            $(mutate_ENABLE_SSL) \
+                                            $(mutate_ENABLE_LZO) \
+                                            $(mutate_ENABLE_PLUGIN) \
+                                            -DENABLE_CLIENT_SERVER \
+                                            -DENABLE_CLIENT_ONLY \
+                                            -DENABLE_FRAGMENT \
+                                            -DENABLE_MANAGEMENT \
+                                            -DENABLE_PASSWORD_SAVE \
+                                            -DENABLE_HTTP_PROXY \
+                                            -DENABLE_SOCKS \
+                                            -I. $(base_CPPFLAGS)
 
 # Enabled debugging is not supposed to modify behaviour, but sometimes
 # active code is forgotten surrounded by #test ENABLE_DEBUG
 # this test may help catch those.
-multi_debug_combo_CFLAGS      = $(base_CFLAGS)
-multi_debug_combo_LDADD	     = $(base_LDADD) $(mutate_CRYPTO_LIBS_1) $(mutate_SSL_LIBS_1) @LZO_LIBS@
-multi_debug_combo_SOURCES     = $(server_sources)
-multi_debug_combo_CPPFLAGS    = -DENABLE_DEBUG -DENABLE_CLIENT_SERVER $(mutate_ENABLE_CRYPTO_1) $(mutate_ENABLE_SSL) $(mutate_ENABLE_LZO) $(mutate_ENABLE_PLUGIN) \
-								-I. $(base_CPPFLAGS) -I$(openvpn_includedir)
+multi_debug_combo_CFLAGS      =             $(base_CFLAGS)
+multi_debug_combo_LDADD       =             $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_1) \
+                                            $(mutate_SSL_LIBS_1) \
+                                            @LZO_LIBS@
+multi_debug_combo_SOURCES     =             $(server_sources)
+multi_debug_combo_CPPFLAGS    =             -DENABLE_DEBUG \
+                                            -DENABLE_CLIENT_SERVER \
+                                            $(mutate_ENABLE_CRYPTO_1) \
+                                            $(mutate_ENABLE_SSL) \
+                                            $(mutate_ENABLE_LZO) \
+                                            $(mutate_ENABLE_PLUGIN) \
+                                            -I. $(base_CPPFLAGS)
 
 check_PROGRAMS = $(all_tests)
 endif
