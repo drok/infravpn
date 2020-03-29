@@ -1122,7 +1122,9 @@ void
 verify_user_pass(struct user_pass *up, struct tls_multi *multi,
     struct tls_session *session)
 {
+#ifdef ENABLE_PLUGIN
   int s1 = OPENVPN_PLUGIN_FUNC_SUCCESS;
+#endif
   bool s2 = true;
   struct key_state *ks = &session->key[KS_PRIMARY]; 	   /* primary key */
 
@@ -1156,24 +1158,30 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
   if (man_def_auth == KMDA_DEF)
     man_def_auth = verify_user_pass_management (session, up, raw_username);
 #endif
+#ifdef ENABLE_PLUGIN
   if (plugin_defined (session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY))
     s1 = verify_user_pass_plugin (session, up, raw_username);
-  if (session->opt->auth_user_pass_verify_script)
-    s2 = verify_user_pass_script (session, up);
+#endif
 
   /* check sizing of username if it will become our common name */
   if ((session->opt->ssl_flags & SSLF_USERNAME_AS_COMMON_NAME) && strlen (up->username) >= TLS_USERNAME_LEN)
     {
       msg (D_TLS_ERRORS, "TLS Auth Error: --username-as-common name specified and username is longer than the maximum permitted Common Name length of %d characters", TLS_USERNAME_LEN);
-      s1 = OPENVPN_PLUGIN_FUNC_ERROR;
+      s2 = false;
     }
+  else if (session->opt->auth_user_pass_verify_script)
+    s2 = verify_user_pass_script (session, up);
 
   /* auth succeeded? */
-  if ((s1 == OPENVPN_PLUGIN_FUNC_SUCCESS
+  if (
+#ifdef ENABLE_PLUGIN
+       (s1 == OPENVPN_PLUGIN_FUNC_SUCCESS
 #ifdef PLUGIN_DEF_AUTH
        || s1 == OPENVPN_PLUGIN_FUNC_DEFERRED
 #endif
-       ) && s2
+       ) && 
+#endif
+      s2
 #ifdef MANAGEMENT_DEF_AUTH
        && man_def_auth != KMDA_ERROR
 #endif
