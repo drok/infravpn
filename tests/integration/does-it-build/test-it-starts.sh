@@ -102,7 +102,8 @@ do_test ()
     fi
 
     case "$uut_version" in
-	"OpenVPN 2.0."*)    [[ "$status" == 1 ]] || fail "Unexpected exit status $status"
+	"OpenVPN "*)
+			    [[ "$status" == 1 ]] || fail "Unexpected exit status $status"
 	;;
 	*)		    [[ "$status" == 0 ]] || fail "Unexpected exit status $status"
 	;;
