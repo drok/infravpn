@@ -452,6 +452,54 @@ multiclient_full_ndebug_client_CPPFLAGS  =  -DNDEBUG \
                                             -DENABLE_SOCKS \
                                             -I. $(base_CPPFLAGS)
 
+if !INTEGRATED_openvpn_2_0
+all_tests +=    easy.ssl2.p2p \
+                multi.ssl2.combo \
+                multiclient.full.ssl2.ndebug.client
+
+easy_ssl2_p2p_CFLAGS    =                       $(base_CFLAGS)
+easy_ssl2_p2p_LDADD     =                       $(base_LDADD) \
+                                                $(mutate_CRYPTO_LIBS_2) \
+                                                $(mutate_SSL_LIBS_2)
+easy_ssl2_p2p_SOURCES   =                       $(client_sources)
+easy_ssl2_p2p_CPPFLAGS  =                       $(mutate_ENABLE_CRYPTO_2) \
+                                                $(mutate_ENABLE_SSL) \
+                                                -I. $(base_CPPFLAGS)
+
+# Multi combo, only SSL #2 enabled, nothing else
+multi_ssl2_combo_CFLAGS    =                    $(base_CFLAGS)
+multi_ssl2_combo_LDADD     =                    $(base_LDADD) \
+                                                $(mutate_CRYPTO_LIBS_2) \
+                                                $(mutate_SSL_LIBS_2)
+multi_ssl2_combo_SOURCES   =                    $(client_sources)
+multi_ssl2_combo_CPPFLAGS  =                    $(mutate_ENABLE_CRYPTO_2) \
+                                                $(mutate_ENABLE_SSL) \
+                                                -DENABLE_CLIENT_SERVER \
+                                                -I. $(base_CPPFLAGS)
+
+# Kitchen sink. Everything is enabled, client only, with alternate SSL libs #2
+multiclient_full_ssl2_ndebug_client_CFLAGS =    $(base_CFLAGS)
+multiclient_full_ssl2_ndebug_client_LDADD =     $(base_LDADD) \
+                                                $(mutate_CRYPTO_LIBS_2) \
+                                                $(mutate_SSL_LIBS_2) \
+                                                @DL_LIBS@ \
+                                                @LZO_LIBS@
+multiclient_full_ssl2_ndebug_client_SOURCES =   $(combo_sources)
+multiclient_full_ssl2_ndebug_client_CPPFLAGS =  -DNDEBUG \
+                                                $(mutate_ENABLE_CRYPTO_2) \
+                                                $(mutate_ENABLE_SSL) \
+                                                $(mutate_ENABLE_LZO) \
+                                                $(mutate_ENABLE_PLUGIN) \
+                                                -DENABLE_CLIENT_SERVER \
+                                                -DENABLE_CLIENT_ONLY \
+                                                -DENABLE_FRAGMENT \
+                                                -DENABLE_MANAGEMENT \
+                                                -DENABLE_PASSWORD_SAVE \
+                                                -DENABLE_HTTP_PROXY \
+                                                -DENABLE_SOCKS \
+                                                -I. $(base_CPPFLAGS)
+endif
+
 # Enabled debugging is not supposed to modify behaviour, but sometimes
 # active code is forgotten surrounded by #test ENABLE_DEBUG
 # this test may help catch those.
