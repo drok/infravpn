@@ -230,7 +230,12 @@ util_sources =   $(common_sources)
 # Integration tests to be run by developers/maintainers, --enable-unit-tests=all
 all_tests = multi.combo \
             multiclient.client \
+            multi.plugin.combo \
+            multi.management.combo \
             easy.p2p \
+            easy.plugin.p2p \
+            easy.management.p2p \
+            easy.lzo.p2p \
             multi.crypto.combo \
             multi.crypto-lzo.combo \
             multi.crypto-ssl-lzo.combo \
@@ -245,6 +250,8 @@ all_tests = multi.combo \
             multi.debug.combo
 
 # FIXME: Fix compile warnings and enable strict integration test w/-Wall -Werror
+# Most warnings are caused by #ifdef bugs, ie, dangling, unused code that
+# belongs inside an #ifdef but it is outside.
 base_CFLAGS        =                        -Wall
 base_LDADD         =                        @WIN32_LIBS@
 base_CPPFLAGS      =                        -I$(openvpn_srcdir) \
@@ -258,6 +265,22 @@ multi_combo_SOURCES   =                     $(combo_sources)
 multi_combo_CPPFLAGS  =                     -DENABLE_CLIENT_SERVER \
                                             -I. $(base_CPPFLAGS)
 
+multi_plugin_combo_CFLAGS    =              $(base_CFLAGS)
+multi_plugin_combo_LDADD     =              $(base_LDADD) \
+                                            @DL_LIBS@
+multi_plugin_combo_SOURCES   =              $(combo_sources)
+multi_plugin_combo_CPPFLAGS  =              -DENABLE_CLIENT_SERVER \
+                                            $(mutate_ENABLE_PLUGIN) \
+                                            -I. $(base_CPPFLAGS)
+
+multi_management_combo_CFLAGS    =          $(base_CFLAGS)
+multi_management_combo_LDADD     =          $(base_LDADD) \
+                                            @DL_LIBS@
+multi_management_combo_SOURCES   =          $(combo_sources)
+multi_management_combo_CPPFLAGS  =          -DENABLE_CLIENT_SERVER \
+                                            $(mutate_ENABLE_PLUGIN) \
+                                            -I. $(base_CPPFLAGS)
+
 multiclient_client_CFLAGS    =              $(base_CFLAGS)
 multiclient_client_LDADD     =              $(base_LDADD)
 multiclient_client_SOURCES   =              $(client_sources)
@@ -269,6 +292,26 @@ easy_p2p_CFLAGS    =                        $(base_CFLAGS)
 easy_p2p_LDADD     =                        $(base_LDADD)
 easy_p2p_SOURCES   =                        $(client_sources)
 easy_p2p_CPPFLAGS  =                        -I. $(base_CPPFLAGS)
+
+easy_plugin_p2p_CFLAGS    =                 $(base_CFLAGS)
+easy_plugin_p2p_LDADD     =                 $(base_LDADD) \
+                                            @DL_LIBS@
+easy_plugin_p2p_SOURCES   =                 $(client_sources)
+easy_plugin_p2p_CPPFLAGS  =                 $(mutate_ENABLE_PLUGIN) \
+                                            -I. $(base_CPPFLAGS)
+
+easy_management_p2p_CFLAGS    =             $(base_CFLAGS)
+easy_management_p2p_LDADD     =             $(base_LDADD)
+easy_management_p2p_SOURCES   =             $(client_sources)
+easy_management_p2p_CPPFLAGS  =             -DENABLE_MANAGEMENT \
+                                            -I. $(base_CPPFLAGS)
+
+easy_lzo_p2p_CFLAGS    =                    $(base_CFLAGS)
+easy_lzo_p2p_LDADD     =                    $(base_LDADD) \
+                                            @LZO_LIBS@
+easy_lzo_p2p_SOURCES   =                    $(client_sources)
+easy_lzo_p2p_CPPFLAGS  =                    -DENABLE_LZO \
+                                            -I. $(base_CPPFLAGS)
 
 multi_crypto_combo_CFLAGS    =              $(base_CFLAGS)
 multi_crypto_combo_LDADD     =              $(base_LDADD) \
