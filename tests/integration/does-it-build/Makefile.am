@@ -379,6 +379,7 @@ multi_crypto_ssl_lzo_plugins_combo_CFLAGS    =       $(base_CFLAGS)
 multi_crypto_ssl_lzo_plugins_combo_LDADD     =       $(base_LDADD) \
                                                      $(mutate_CRYPTO_LIBS_1) \
                                                      $(mutate_SSL_LIBS_1) \
+                                                     @DL_LIBS@ \
                                                      @LZO_LIBS@
 multi_crypto_ssl_lzo_plugins_combo_SOURCES   =       $(server_sources)
 multi_crypto_ssl_lzo_plugins_combo_CPPFLAGS  =       -DENABLE_CLIENT_SERVER \
@@ -392,6 +393,7 @@ multiclient_crypto_ssl_lzo_plugins_client_CFLAGS =   $(base_CFLAGS)
 multiclient_crypto_ssl_lzo_plugins_client_LDADD =    $(base_LDADD) \
                                                      $(mutate_CRYPTO_LIBS_1) \
                                                      $(mutate_SSL_LIBS_1) \
+                                                     @DL_LIBS@ \
                                                      @LZO_LIBS@
 multiclient_crypto_ssl_lzo_plugins_client_SOURCES = $(server_sources)
 multiclient_crypto_ssl_lzo_plugins_client_CPPFLAGS=  -DENABLE_CLIENT_SERVER \
@@ -415,6 +417,7 @@ multi_ndebug_combo_CFLAGS    =              $(base_CFLAGS)
 multi_ndebug_combo_LDADD     =              $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
+                                            @DL_LIBS@ \
                                             @LZO_LIBS@
 multi_ndebug_combo_SOURCES   =              $(combo_sources)
 multi_ndebug_combo_CPPFLAGS  =              -DNDEBUG \
@@ -430,6 +433,7 @@ easy_full_ndebug_p2p_CFLAGS    =            $(base_CFLAGS)
 easy_full_ndebug_p2p_LDADD     =            $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
+                                            @DL_LIBS@ \
                                             @LZO_LIBS@
 easy_full_ndebug_p2p_SOURCES   =            $(combo_sources)
 easy_full_ndebug_p2p_CPPFLAGS  =            -DNDEBUG \
@@ -449,6 +453,7 @@ multi_full_ndebug_combo_CFLAGS    =         $(base_CFLAGS)
 multi_full_ndebug_combo_LDADD     =         $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
+                                            @DL_LIBS@ \
                                             @LZO_LIBS@
 multi_full_ndebug_combo_SOURCES   =         $(combo_sources)
 multi_full_ndebug_combo_CPPFLAGS  =         -DNDEBUG \
@@ -470,6 +475,7 @@ multi_full_ndebug_small_combo_CFLAGS    =   $(base_CFLAGS)
 multi_full_ndebug_small_combo_LDADD     =   $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
+                                            @DL_LIBS@ \
                                             @LZO_LIBS@
 multi_full_ndebug_small_combo_SOURCES   =   $(combo_sources)
 multi_full_ndebug_small_combo_CPPFLAGS  =   -DNDEBUG \
@@ -491,6 +497,7 @@ multi_full_debug_combo_CFLAGS    =          $(base_CFLAGS)
 multi_full_debug_combo_LDADD     =          $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
+                                            @DL_LIBS@ \
                                             @LZO_LIBS@
 multi_full_debug_combo_SOURCES   =          $(combo_sources)
 multi_full_debug_combo_CPPFLAGS  =          -DENABLE_DEBUG \
@@ -511,6 +518,7 @@ multiclient_full_ndebug_client_CFLAGS    =  $(base_CFLAGS)
 multiclient_full_ndebug_client_LDADD     =  $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
+                                            @DL_LIBS@ \
                                             @LZO_LIBS@
 multiclient_full_ndebug_client_SOURCES   =  $(combo_sources)
 multiclient_full_ndebug_client_CPPFLAGS  =  -DNDEBUG \
@@ -582,6 +590,7 @@ multi_debug_combo_CFLAGS      =             $(base_CFLAGS)
 multi_debug_combo_LDADD       =             $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
+                                            @DL_LIBS@ \
                                             @LZO_LIBS@
 multi_debug_combo_SOURCES     =             $(server_sources)
 multi_debug_combo_CPPFLAGS    =             -DENABLE_DEBUG \
