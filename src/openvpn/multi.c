@@ -99,6 +99,7 @@ learn_address_script (const struct multi_context *m,
   else
     plugins = m->top.plugins;
 
+#ifdef ENABLE_PLUGIN
   if (plugin_defined (plugins, OPENVPN_PLUGIN_LEARN_ADDRESS))
     {
       struct argv argv = argv_new ();
@@ -114,6 +115,7 @@ learn_address_script (const struct multi_context *m,
 	}
       argv_reset (&argv);
     }
+#endif
 
   if (m->top.options.learn_address_script)
     {
@@ -490,11 +492,13 @@ multi_client_disconnect_script (struct multi_context *m,
     {
       multi_client_disconnect_setenv (m, mi);
 
+#ifdef ENABLE_PLUGIN
       if (plugin_defined (mi->context.plugins, OPENVPN_PLUGIN_CLIENT_DISCONNECT))
 	{
 	  if (plugin_call (mi->context.plugins, OPENVPN_PLUGIN_CLIENT_DISCONNECT, NULL, NULL, mi->context.c2.es) != OPENVPN_PLUGIN_FUNC_SUCCESS)
 	    msg (M_WARN, "WARNING: client-disconnect plugin call failed");
 	}
+#endif
 
       if (mi->context.options.client_disconnect_script)
 	{

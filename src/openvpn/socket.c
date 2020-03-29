@@ -34,7 +34,9 @@
 #include "fdmisc.h"
 #include "misc.h"
 #include "gremlin.h"
+#ifdef ENABLE_PLUGIN
 #include "plugin.h"
+#endif
 #include "ps.h"
 #include "manage.h"
 #include "misc.h"
@@ -1871,6 +1873,7 @@ link_socket_connection_initiated (const struct buffer *buf,
   /* set environmental vars */
   setenv_str (es, "common_name", common_name);
 
+#ifdef ENABLE_PLUGIN
   /* Process --ipchange plugin */
   if (plugin_defined (info->plugins, OPENVPN_PLUGIN_IPCHANGE))
     {
@@ -1880,6 +1883,7 @@ link_socket_connection_initiated (const struct buffer *buf,
 	msg (M_WARN, "WARNING: ipchange plugin call failed");
       argv_reset (&argv);
     }
+#endif
 
   /* Process --ipchange option */
   if (info->ipchange_command)

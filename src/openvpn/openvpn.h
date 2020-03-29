@@ -44,7 +44,9 @@
 #include "misc.h"
 #include "mbuf.h"
 #include "pool.h"
+#ifdef ENABLE_PLUGIN
 #include "plugin.h"
+#endif
 #include "manage.h"
 #include "pf.h"
 

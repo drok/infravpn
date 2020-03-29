@@ -37,8 +37,6 @@
 #endif
 #include "openvpn-plugin.h"
 
-#ifdef ENABLE_PLUGIN
-
 #include "misc.h"
 
 #define MAX_PLUGINS 16
@@ -166,33 +164,6 @@ plugin_return_init (struct plugin_return *pr)
 {
   pr->n = 0;
 }
-
-#else
-struct plugin_list { int dummy; };
-struct plugin_return { int dummy; };
-
-static inline bool
-plugin_defined (const struct plugin_list *pl, const int type)
-{
-  return false;
-}
-
-static inline int
-plugin_call_ssl (const struct plugin_list *pl,
-	     const int type,
-	     const struct argv *av,
-	     struct plugin_return *pr,
-	     struct env_set *es
-#ifdef ENABLE_SSL
-	     , int current_cert_depth,
-	     openvpn_x509_cert_t *current_cert
-#endif
-	    )
-{
-  return 0;
-}
-
-#endif /* ENABLE_PLUGIN */
 
 static inline int
 plugin_call(const struct plugin_list *pl,

@@ -36,7 +36,9 @@
 #include "tun.h"
 #include "error.h"
 #include "otime.h"
+#ifdef ENABLE_PLUGIN
 #include "plugin.h"
+#endif
 #include "options.h"
 #include "manage.h"
 #include "crypto.h"
@@ -59,8 +61,10 @@ int script_security = SSEC_BUILT_IN; /* GLOBAL */
  */
 void
 run_up_down (const char *command,
+#ifdef ENABLE_PLUGIN
 	     const struct plugin_list *plugins,
 	     int plugin_type,
+#endif
 	     const char *arg,
 	     const char *dev_type,
 	     int tun_mtu,
@@ -90,6 +94,7 @@ run_up_down (const char *command,
   if (!context)
     context = "";
 
+#ifdef ENABLE_PLUGIN
   if (plugin_defined (plugins, plugin_type))
     {
       struct argv argv = argv_new ();
@@ -106,6 +111,7 @@ run_up_down (const char *command,
 
       argv_reset (&argv);
     }
+#endif
 
   if (command)
     {

@@ -439,6 +439,7 @@ verify_cert_set_env(struct env_set *es, openvpn_x509_cert_t *peer_cert, int cert
   gc_free(&gc);
 }
 
+#ifdef ENABLE_PLUGIN
 /*
  * call --tls-verify plug-in(s)
  */
@@ -471,6 +472,7 @@ verify_cert_call_plugin(const struct plugin_list *plugins, struct env_set *es,
     }
   return SUCCESS;
 }
+#endif
 
 static const char *
 verify_cert_export_cert(openvpn_x509_cert_t *peercert, const char *tmp_dir, struct gc_arena *gc)
@@ -667,9 +669,11 @@ verify_cert(struct tls_session *session, openvpn_x509_cert_t *cert, int cert_dep
   if (cert_depth == 0 && SUCCESS != verify_peer_cert(opt, cert, subject, common_name))
     goto cleanup;
 
+#ifdef ENABLE_PLUGIN
   /* call --tls-verify plug-in(s), if registered */
   if (SUCCESS != verify_cert_call_plugin(opt->plugins, opt->es, cert_depth, cert, subject))
     goto cleanup;
+#endif
 
   /* run --tls-verify script */
   if (opt->verify_command && SUCCESS != verify_cert_call_command(opt->verify_command,
@@ -1015,6 +1019,7 @@ verify_user_pass_script (struct tls_session *session, const struct user_pass *up
   return ret;
 }
 
+#ifdef ENABLE_PLUGIN
 /*
  * Verify the username and password using a plugin
  */
@@ -1062,7 +1067,7 @@ verify_user_pass_plugin (struct tls_session *session, const struct user_pass *up
 
   return retval;
 }
-
+#endif
 
 #ifdef MANAGEMENT_DEF_AUTH
 /*

@@ -60,8 +60,10 @@ struct env_set {
 };
 
 void run_up_down (const char *command,
+#ifdef ENABLE_PLUGIN
 		  const struct plugin_list *plugins,
 		  int plugin_type,
+#endif
 		  const char *arg,
 		  const char *dev_type,
 		  int tun_mtu,
