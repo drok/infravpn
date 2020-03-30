@@ -98,6 +98,9 @@ common_sources = \
 # If any test is expected to fail (eg, new test, WIP, on TODO list), add it here
 XFAIL_TESTS =
 
+# TODO: Add @SYSTEMD_LIBS@ test, added @ 027dd7f v2.3.5
+# TODO: Add @RESOLVER_LIBS@ test, added @ ae9aff25 2.3.7
+
 # Build options/mutators which I have noticed in config.h, but have not yet
 # written a test to exercise. Maybe you can add some. Most such options
 # will cause test failures when exercised on their own, without other options
