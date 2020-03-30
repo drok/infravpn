@@ -42,4 +42,8 @@ if UNIT_TESTED_tls_crypt
 SUBDIRS += unit/tls_crypt
 endif
 
+if UNIT_TESTED_rfc4821
+SUBDIRS += unit/rfc4821
+endif
+
 endif

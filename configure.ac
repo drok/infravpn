@@ -153,6 +153,8 @@ AM_CONDITIONAL([IMPLEMENTED_tls_crypt_2_4],
 AM_CONDITIONAL([IMPLEMENTED_tls_crypt_2_5],
     [test -f $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c &&
     ${GREP} '^tls_crypt_v2_write_client_key_file(const char \*filename$' $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c >/dev/null])
+
+AM_CONDITIONAL([IMPLEMENTED_rfc4821], [false])
 # #################### End Feature Implementations ############################
 
 # ######################## Buildable Packages #################################
@@ -203,6 +205,10 @@ AM_COND_IF([IMPLEMENTED_tls_crypt_2_5], [implemented=yes])
 #
 AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/tls_crypt/Makefile)])
 AM_CONDITIONAL([UNIT_TESTED_tls_crypt], [test "$implemented" = "yes" && unset implemented])
+
+AM_COND_IF([IMPLEMENTED_rfc4821], [implemented=yes])
+AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/rfc4821/Makefile)])
+AM_CONDITIONAL([UNIT_TESTED_rfc4821], [test "$implemented" = "yes" && unset implemented])
 # ################### End Feature Unit Tests ##################################
 
 AC_ARG_ENABLE(
@@ -230,6 +236,9 @@ AS_IF([test "${enable_unit_tests}" != "no"], [
             [CMOCKA], [cmocka],,
             [AC_MSG_ERROR([cmocka (required for unit testing) not found. Install it or --disable-unit-tests])]
     )
+
+    AX_SEARCH_LIBS(MATH, [log2], [m])
 ])
+AC_SUBST([MATH_LIBS])
 
 AC_OUTPUT
