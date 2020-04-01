@@ -67,6 +67,9 @@ alloc_buf (size_t size)
   buf.capacity = (int)size;
   buf.offset = 0;
   buf.len = 0;
+  buf.ip_pmtudisc = BUF_PMTUDISC_DONT;
+  ASSERT (BUF_PMTUDISC_DO == IP_PMTUDISC_DO);
+
 #ifdef DMALLOC
   buf.data = openvpn_dmalloc (file, line, size);
 #else
@@ -119,6 +122,7 @@ alloc_buf_gc (size_t size, struct gc_arena *gc)
 #else
   buf.data = (uint8_t *) gc_malloc (size, false, gc);
 #endif
+  buf.ip_pmtudisc = BUF_PMTUDISC_DONT;
   if (size)
     *buf.data = 0;
 #ifdef BUF_INIT_TRACKING
@@ -146,6 +150,7 @@ clone_buf (const struct buffer* buf)
 #endif
   check_malloc_return (ret.data);
   memcpy (BPTR (&ret), BPTR (buf), BLEN (buf));
+  ret.ip_pmtudisc = BUF_PMTUDISC_DONT;
 #ifdef BUF_INIT_TRACKING
   ret.debug_file = NULL;
   ret.debug_line = 0;
@@ -280,7 +285,22 @@ buf_puts(struct buffer *buf, const char *str)
     }
   return ret;
 }
- 
+
+/* Reallocates the buffer to fit the len, then fills with
+ * incompressible data. Used *only* for MTU probing.
+ * Will be sent to socket with the IP_PMTUDISC_DO option set
+ */
+void
+buf_fill_incompressible (struct buffer *buf, uint16_t len)
+{
+  realloc_buf(buf, len + buf->offset);
+
+  int i;
+  for (i = buf->len; i < len; i++)
+    buf_write_u8(buf, rand());
+  buf->ip_pmtudisc = BUF_PMTUDISC_DO;
+}
+
 
 /*
  * This is necessary due to certain buggy implementations of snprintf,
@@ -396,7 +416,7 @@ x_gc_free (struct gc_arena *a)
   struct gc_entry *e;
   e = a->list;
   a->list = NULL;
-  
+
   while (e != NULL)
     {
       struct gc_entry *next = e->next;
@@ -672,6 +692,7 @@ string_alloc_buf (const char *str, struct gc_arena *gc)
 #else
   buf_set_read (&buf, (uint8_t*) string_alloc (str, gc), strlen (str) + 1);
 #endif
+  buf.ip_pmtudisc = BUF_PMTUDISC_DONT;
 
   if (buf.len > 0) /* Don't count trailing '\0' as part of length */
     --buf.len;
@@ -795,7 +816,7 @@ char_class (const unsigned char c, const unsigned int flags)
   if ((flags & CC_PRINT) && (c >= 32 && c != 127)) /* allow ascii non-control and UTF-8, consider DEL to be a control */
     return true;
   if ((flags & CC_PUNCT) && ispunct (c))
-    return true;    
+    return true;
   if ((flags & CC_SPACE) && isspace (c))
     return true;
   if ((flags & CC_XDIGIT) && isxdigit (c))

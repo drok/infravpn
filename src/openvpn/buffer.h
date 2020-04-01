@@ -74,6 +74,13 @@ struct buffer
                                  *   within the allocated memory. */
   uint8_t *data;                /**< Pointer to the allocated memory. */
 
+  enum {
+    BUF_PMTUDISC_DONT = IP_PMTUDISC_DONT,
+                                /* allow this buffer to be fragmented */
+    BUF_PMTUDISC_DO   = IP_PMTUDISC_DO,
+                                /* set don't fragment bit when sending this */
+  } ip_pmtudisc;
+
 #ifdef BUF_INIT_TRACKING
   const char *debug_file;
   int debug_line;
@@ -268,6 +275,7 @@ buf_init_dowork (struct buffer *buf, int offset)
     return false;
   buf->len = 0;
   buf->offset = offset;
+  buf->ip_pmtudisc = BUF_PMTUDISC_DONT;
   return true;
 }
 
