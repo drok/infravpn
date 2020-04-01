@@ -2306,8 +2306,10 @@ do_init_crypto_tls (struct context *c, const unsigned int flags)
 #ifdef ENABLE_PUSH_PEER_INFO
   if (options->push_peer_info)		/* all there is */
     to.push_peer_info_detail = 2;
+#if P2MP
   else if (options->pull)		/* pull clients send some details */
     to.push_peer_info_detail = 1;
+#endif
   else					/* default: no peer-info at all */
     to.push_peer_info_detail = 0;
 #endif
