@@ -925,7 +925,7 @@ valign4 (const struct buffer *buf, const char *file, const int line)
   if (buf && buf->len)
     {
       int msglevel = D_ALIGN_DEBUG;
-      const unsigned int u = (unsigned int) BPTR (buf);
+      const unsigned long u = (unsigned long) BPTR (buf);
 
       if (u & (PAYLOAD_ALIGN-1))
 	msglevel = D_ALIGN_ERRORS;
