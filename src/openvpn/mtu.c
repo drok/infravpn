@@ -35,6 +35,7 @@
 #include "error.h"
 #include "integer.h"
 #include "mtu.h"
+#include "socket.h"
 
 #include "memdbg.h"
 
@@ -42,88 +43,348 @@
 void
 alloc_buf_sock_tun (struct buffer *buf,
 		    const struct frame *frame,
-		    const bool tuntap_buffer,
-		    const unsigned int align_mask)
+		    const bool tuntap_buffer)
 {
   /* allocate buffer for overlapped I/O */
-  *buf = alloc_buf (BUF_SIZE (frame));
-  ASSERT (buf_init (buf, FRAME_HEADROOM_ADJ (frame, align_mask)));
-  buf->len = tuntap_buffer ? MAX_RW_SIZE_TUN (frame) : MAX_RW_SIZE_LINK (frame);
+  *buf = alloc_buf (ENCRYPTION_BUFSIZE(frame, LINK_RECV_BUFSIZE_STARTUP(frame)));
+  bool success = buf_init (buf, frame_get_data_headroom (frame));
+  ASSERT (success && "Link socket transmit buffer initialized successfully");
+  /* FIXME: I'm pretty sure this is not correct.
+   * What is this buffer used for? Sending? Receiving? Link or TUN?
+   * Assuming this is a link receive buffer.
+   * But what is the meaning of setting the len, and checking if it's safe to add
+   * 0 bytes??
+   */
+  buf->len = tuntap_buffer ? TUN_RECV_BUFSIZE_STARTUP : LINK_RECV_BUFSIZE_STARTUP(frame);
   ASSERT (buf_safe (buf, 0));
-}
-
-void
-frame_finalize (struct frame *frame,
-		bool link_mtu_defined,
-		int link_mtu,
-		bool tun_mtu_defined,
-		int tun_mtu)
-{
-  /* Set link_mtu based on command line options */
-  if (tun_mtu_defined)
-    {
-      ASSERT (!link_mtu_defined);
-      frame->link_mtu = tun_mtu + TUN_LINK_DELTA (frame);
-    }
-  else
-    {
-      ASSERT (link_mtu_defined);
-      frame->link_mtu = link_mtu;
-    }
-
-  if (TUN_MTU_SIZE (frame) < TUN_MTU_MIN)
-    {
-      msg (M_WARN, "TUN MTU value (%d) must be at least %d", TUN_MTU_SIZE (frame), TUN_MTU_MIN);
-      frame_print (frame, M_FATAL, "MTU is too small");
-    }
-
-  frame->link_mtu_dynamic = frame->link_mtu;
-
-  frame->extra_buffer += PAYLOAD_ALIGN;
 }
 
 /*
  * Set the tun MTU dynamically.
  */
 void
-frame_set_mtu_dynamic (struct frame *frame, int mtu, unsigned int flags)
+frame_set_mtu (struct frame *frame, uint16_t mtu)
 {
+  ASSERT (IS_INITIALIZED(&frame->link));
 
-#ifdef ENABLE_DEBUG
-  const int orig_mtu = mtu;
-  const int orig_link_mtu_dynamic = frame->link_mtu_dynamic;
+  frame->link.pmtu = mtu;
+}
+
+void
+frame_init_config (struct frame *frame,
+                 uint16_t tls_auth_size,
+                 uint16_t headroom)
+{
+  ASSERT (!IS_INITIALIZED(&frame->config) && "Frame config is only initialized once");
+
+#if !defined(NDEBUG)
+  frame->config.is_init = true;
 #endif
 
-  ASSERT (mtu >= 0);
+  frame->config.tls_auth_size = tls_auth_size;
+  frame->config.headroom = headroom;
 
-  if (flags & SET_MTU_TUN)
-    mtu += TUN_LINK_DELTA (frame);
+  frame_print (frame, D_MTU_INFO, "Frame Init Config:");
+}
 
-  if (!(flags & SET_MTU_UPPER_BOUND) || mtu < frame->link_mtu_dynamic)
-    {
-      frame->link_mtu_dynamic = constrain_int (
-	mtu,
-	EXPANDED_SIZE_MIN (frame),
-	EXPANDED_SIZE (frame));
-    }
+void
+frame_init_crypto (struct frame *frame,
+#if defined(ENABLE_LZO)
+            uint16_t lzo_headroom,
+#endif
+#if defined(ENABLE_FRAGMENT)
+            uint16_t fragment_headroom,
+#endif
+            uint16_t headroom,
+            uint16_t overhead,
+            uint16_t alignment)
+{
 
-  dmsg (D_MTU_DEBUG, "MTU DYNAMIC mtu=%d, flags=%u, %d -> %d",
-       orig_mtu,
-       flags,
-       orig_link_mtu_dynamic,
-       frame->link_mtu_dynamic);
+  ASSERT (!IS_INITIALIZED(&frame->config.crypto) && "Frame crypto is only initialized once");
+
+#if !defined(NDEBUG)
+  frame->config.crypto.is_init = true;
+#endif
+
+  frame->config.crypto.headroom          = headroom;
+  frame->config.crypto.overhead_sans_pad = overhead;
+  frame->config.crypto.alignment         = alignment;
+
+#if defined(ENABLE_LZO)
+  frame->config.crypto.lzo.headroom      = lzo_headroom;
+#endif
+#if defined(ENABLE_FRAGMENT)
+  frame->config.crypto.lzo.fragment.headroom
+                                         = fragment_headroom;
+#endif
+
+  frame_print (frame, D_MTU_INFO, "Frame Init Crypto:");
+}
+
+void
+frame_init_link (struct frame *frame,
+                 int proto)
+{
+  ASSERT (!IS_INITIALIZED(&frame->link) && "Frame Link is only initialized once");
+
+#if !defined(NDEBUG)
+  frame->link.is_init = true;
+#endif
+
+  frame->link.pmtu = LINK_MTU_STARTUP;
+  frame->link.encapsulation = datagram_overhead(proto);
+
+  frame_print (frame, D_MTU_INFO, "Frame Init Link:");
+}
+
+#if 0
+/* 
+ */
+uint16_t inline
+frame_get_data_payload_room (const struct frame *frame)
+{
+  ASSERT (IS_INITIALIZED(&frame->link));
+
+  return frame->link.pmtu - frame->link.encapsulation -
+          frame_get_data_overhead(frame, 0);
+}
+#endif
+
+uint16_t inline
+frame_get_data_headroom (const struct frame *frame)
+{
+  ASSERT (IS_INITIALIZED(&frame->config));
+  ASSERT (IS_INITIALIZED(&frame->config.crypto));
+
+  return DATA_HEADROOM(frame);
+}
+
+uint16_t inline
+frame_get_data_comp_headroom (const struct frame *frame)
+{
+  ASSERT (IS_INITIALIZED(&frame->config));
+  ASSERT (IS_INITIALIZED(&frame->config.crypto));
+
+  uint16_t headroom = DATA_HEADROOM(frame);
+
+#if defined(ENABLE_LZO)
+  headroom += frame->config.crypto.lzo.headroom;
+#endif
+#if defined(ENABLE_FRAGMENT)
+  headroom += frame->config.crypto.lzo.fragment.headroom;
+#endif
+
+  return headroom;
+}
+
+#if defined(ENABLE_FRAGMENT)
+uint16_t inline
+frame_get_data_frag_headroom (const struct frame *frame)
+{
+  ASSERT (IS_INITIALIZED(&frame->config));
+  ASSERT (IS_INITIALIZED(&frame->config.crypto));
+
+  uint16_t headroom = DATA_HEADROOM(frame);
+
+  headroom += frame->config.crypto.lzo.fragment.headroom;
+
+  return headroom;
+}
+
+uint16_t inline
+frame_get_data_frag_payload_room (const struct frame *frame)
+{
+  ASSERT (IS_INITIALIZED(&frame->link));
+  ASSERT (IS_INITIALIZED(&frame->config.crypto));
+
+  uint16_t room = frame->link.pmtu - DATA_ENCAPSULATION(frame);
+  /* Trim the room to alignment boundary, and deduct the minimum necessary
+   * padding (1 byte)
+   */
+  if (frame->config.crypto.alignment)
+    room -= (room % frame->config.crypto.alignment + 1);
+  
+    room -= frame->config.crypto.lzo.fragment.headroom;
+  
+  return room;
+}
+
+#endif
+
+uint16_t inline
+frame_get_data_comp_overhead (const struct frame *frame, uint16_t datalen)
+{
+  ASSERT (IS_INITIALIZED(&frame->config.crypto));
+
+  uint16_t fragmented = 
+#if defined(ENABLE_LZO)
+            frame->config.crypto.lzo.headroom +
+#endif
+#if defined(ENABLE_FRAGMENT)
+            frame->config.crypto.lzo.fragment.headroom +
+#endif
+            datalen;
+
+    return 
+#if defined(ENABLE_LZO)
+            frame->config.crypto.lzo.headroom +
+#endif
+#if defined(ENABLE_FRAGMENT)
+            frame->config.crypto.lzo.fragment.headroom +
+#endif
+            frame_get_data_overhead (frame, fragmented);
 }
 
 /*
- * Move extra_frame octets into extra_tun.  Used by fragmenting code
- * to adjust frame relative to its position in the buffer processing
- * queue.
- */
-void
-frame_subtract_extra (struct frame *frame, const struct frame *src)
+uint16_t inline
+frame_get_data_comp_min_overhead (const struct frame *frame, uint16_t datalen)
 {
-  frame->extra_frame -= src->extra_frame;
-  frame->extra_tun   += src->extra_frame;
+  return frame_get_data_comp_overhead(frame,
+                   frame->crypto.alignment ? frame->crypto.alignment - 1 : 0);
+}
+*/
+uint16_t inline
+frame_get_data_comp_encapsulation (const struct frame *frame)
+{
+  return frame_get_link_encapsulation(frame) +
+         frame_get_data_comp_headroom(frame);
+}
+
+uint16_t inline
+frame_get_data_comp_payload_room (const struct frame *frame)
+{
+  ASSERT (IS_INITIALIZED(&frame->link));
+  ASSERT (IS_INITIALIZED(&frame->config.crypto));
+
+  uint16_t room = frame->link.pmtu - DATA_ENCAPSULATION(frame);
+  /* Trim the room to alignment boundary, and deduct the minimum necessary
+   * padding (1 byte)
+   */
+  if (frame->config.crypto.alignment)
+    room -= (room % frame->config.crypto.alignment + 1);
+  
+#if defined(ENABLE_LZO)
+    room -= frame->config.crypto.lzo.headroom;
+#endif
+#if defined(ENABLE_FRAGMENT)
+    room -= frame->config.crypto.lzo.fragment.headroom;
+#endif
+  
+  return room;
+}
+
+uint16_t inline
+frame_get_data_overhead (const struct frame *frame, uint16_t datalen)
+{
+  ASSERT (IS_INITIALIZED(&frame->config));
+  ASSERT (IS_INITIALIZED(&frame->config.crypto));
+
+  return    DATA_HEADROOM(frame) +
+            frame->config.crypto.overhead_sans_pad - frame->config.crypto.headroom +
+            frame_get_data_padding (frame, datalen /* data + packet_id */);
+}
+
+uint16_t inline
+frame_get_data_padding (const struct frame *frame, uint16_t datalen)
+{
+  ASSERT (IS_INITIALIZED(&frame->config.crypto));
+
+  uint16_t replay = frame->config.crypto.overhead_sans_pad - frame->config.crypto.headroom;
+  uint16_t padding_len_pkcs7 = frame->config.crypto.alignment ? frame->config.crypto.alignment - 
+          ((datalen+replay) % frame->config.crypto.alignment) : 0;
+  return padding_len_pkcs7;
+}
+
+uint16_t inline
+frame_get_data_padding_max (const struct frame *frame)
+{
+  ASSERT (IS_INITIALIZED(&frame->config.crypto));
+  return frame->config.crypto.alignment;
+}
+
+uint16_t inline
+frame_get_link_encapsulation (const struct frame *frame)
+{
+  ASSERT (IS_INITIALIZED(&frame->link));
+
+  return frame->link.encapsulation;
+}
+
+uint16_t inline
+frame_get_link_pmtu (const struct frame *frame)
+{
+  ASSERT (IS_INITIALIZED(&frame->link));
+
+  return frame->link.pmtu;
+}
+
+uint16_t inline
+frame_get_reliable_encapsulation (const struct frame *frame, int num_acks)
+{
+  ASSERT (IS_INITIALIZED(&frame->link));
+
+  return RELIABLE_ENCAPSULATION(frame,num_acks);
+}
+
+uint16_t inline
+frame_get_reliable_headroom (const struct frame *frame, int num_acks)
+{
+  ASSERT (IS_INITIALIZED(&frame->config));
+
+  return RELIABLE_HEADROOM(frame,num_acks);
+}
+
+uint16_t inline
+frame_get_control_encapsulation (const struct frame *frame, int num_acks)
+{
+  ASSERT (IS_INITIALIZED(&frame->config));
+  ASSERT (IS_INITIALIZED(&frame->link));
+
+  return CONTROL_ENCAPSULATION(frame,num_acks);
+}
+
+uint16_t inline
+frame_get_control_headroom (const struct frame *frame, int num_acks)
+{
+  ASSERT (IS_INITIALIZED(&frame->config));
+
+  return CONTROL_HEADROOM(frame,num_acks);
+}
+
+uint16_t inline
+frame_get_probe_encapsulation (const struct frame *frame)
+{
+  ASSERT (IS_INITIALIZED(&frame->config));
+  ASSERT (IS_INITIALIZED(&frame->link));
+
+  return CONTROL_ENCAPSULATION(frame,0);
+}
+
+/* Amount of DATA carried in a Control message with num_acks ACKs that will fit
+ * in the PMTU.
+ * 
+ * This is socket bufsize minus opcode, SID, ACKs, packet_ID and TLS-AUTH
+ */
+uint16_t inline
+frame_get_control_payload_room (const struct frame *frame, int num_acks)
+{
+  ASSERT (IS_INITIALIZED(&frame->config));
+  ASSERT (IS_INITIALIZED(&frame->link));
+  
+  return frame->link.pmtu -
+          CONTROL_ENCAPSULATION(frame, num_acks);
+}
+
+/* Buffer size needed to send() to the socket descriptor, and fill the
+ * PMTU exactly?
+ */
+uint16_t inline
+frame_get_link_bufsize (const struct frame *frame)
+{
+  ASSERT (IS_INITIALIZED(&frame->config));
+  ASSERT (IS_INITIALIZED(&frame->link));
+  
+  return frame->link.pmtu - frame->link.encapsulation + frame->config.headroom;
 }
 
 void
@@ -132,59 +393,48 @@ frame_print (const struct frame *frame,
 	     const char *prefix)
 {
   struct gc_arena gc = gc_new ();
-  struct buffer out = alloc_buf_gc (256, &gc);
-  if (prefix)
-    buf_printf (&out, "%s ", prefix);
-  buf_printf (&out, "[");
-  buf_printf (&out, " L:%d", frame->link_mtu);
-  buf_printf (&out, " D:%d", frame->link_mtu_dynamic);
-  buf_printf (&out, " EF:%d", frame->extra_frame);
-  buf_printf (&out, " EB:%d", frame->extra_buffer);
-  buf_printf (&out, " ET:%d", frame->extra_tun);
-  buf_printf (&out, " EL:%d", frame->extra_link);
-  if (frame->align_flags && frame->align_adjust)
-    buf_printf (&out, " AF:%u/%d", frame->align_flags, frame->align_adjust);
-  buf_printf (&out, " ]");
-
-  msg (level, "%s", out.data);
-  gc_free (&gc);
-}
-
-#define MTUDISC_NOT_SUPPORTED_MSG "--mtu-disc is not supported on this OS"
-
-void
-set_mtu_discover_type (int sd, int mtu_type)
-{
-  if (mtu_type >= 0)
+  struct buffer out;
+  if (check_debug_level(D_MTU_INFO))
     {
-#if defined(HAVE_SETSOCKOPT) && defined(SOL_IP) && defined(IP_MTU_DISCOVER)
-      if (setsockopt
-	  (sd, SOL_IP, IP_MTU_DISCOVER, &mtu_type, sizeof (mtu_type)))
-	msg (M_ERR, "Error setting IP_MTU_DISCOVER type=%d on TCP/UDP socket",
-	     mtu_type);
-#else
-      msg (M_FATAL, MTUDISC_NOT_SUPPORTED_MSG);
-#endif
-    }
-}
+      out = alloc_buf_gc (256, &gc);
+      if (prefix)
+        buf_printf (&out, "%s ", prefix);
 
-int
-translate_mtu_discover_type_name (const char *name)
-{
-#if defined(IP_PMTUDISC_DONT) && defined(IP_PMTUDISC_WANT) && defined(IP_PMTUDISC_DO)
-  if (!strcmp (name, "yes"))
-    return IP_PMTUDISC_DO;
-  if (!strcmp (name, "maybe"))
-    return IP_PMTUDISC_WANT;
-  if (!strcmp (name, "no"))
-    return IP_PMTUDISC_DONT;
-  msg (M_FATAL,
-       "invalid --mtu-disc type: '%s' -- valid types are 'yes', 'maybe', or 'no'",
-       name);
-#else
-  msg (M_FATAL, MTUDISC_NOT_SUPPORTED_MSG);
+      buf_printf (&out, "[");
+#if !defined(NDEBUG)
+      if (frame->config.is_init)
 #endif
-  return -1;			/* NOTREACHED */
+        {
+          buf_printf (&out, " TLS-AUTH:%d", frame->config.tls_auth_size);  /* auth size */
+          buf_printf (&out, " LHR:%d", frame->config.headroom);  /* socks5 H/R */
+        }
+#if !defined(NDEBUG)
+      if (frame->link.is_init)
+#endif
+        {
+          buf_printf (&out, " PMTU:%d", frame->link.pmtu);   /* path mtu */
+          buf_printf (&out, " P:%d", frame->link.encapsulation);/* proto overhead */
+        }
+#if !defined(NDEBUG)
+      if (frame->config.crypto.is_init)
+#endif
+        {
+          buf_printf (&out, " CHR:%d",  frame->config.crypto.headroom);   /* data overhead */
+          buf_printf (&out, " COH:%d",  frame->config.crypto.overhead_sans_pad); /* data overhead */
+          buf_printf (&out, " CA:%d", frame->config.crypto.alignment); /* data alignment */
+      
+#if defined(ENABLE_LZO)
+          buf_printf (&out, " C:%d", frame->config.crypto.lzo.headroom);
+#endif
+#if defined(ENABLE_FRAGMENT)
+          buf_printf (&out, " F:%d", frame->config.crypto.lzo.fragment.headroom);
+#endif
+        }
+      buf_printf (&out, " ]");
+
+      msg (level, "%s", out.data);
+      gc_free (&gc);
+    }
 }
 
 #if EXTENDED_SOCKET_ERROR_CAPABILITY

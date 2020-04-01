@@ -1205,13 +1205,11 @@ AM_CONDITIONAL([IMPLEMENTED_buffer_2_5],
     [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
     ${GREP} '^buffer_write_file(const char \*filename, const struct buffer \*buf)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c])
 
-AM_CONDITIONAL([IMPLEMENTED_mtu_2_0],
-    [test -f $(dirname "$srcdir/$ac_unique_file")/mtu.c &&
-    ${GREP} '^frame_set_mtu_dynamic' $(dirname "$srcdir/$ac_unique_file")/mtu.c])
+AM_CONDITIONAL([IMPLEMENTED_mtu_2_0], [false])
 AM_CONDITIONAL([IMPLEMENTED_mtu_2_4],
     [test -f $(dirname "$srcdir/$ac_unique_file")/mtu.c &&
-    ${GREP} '^frame_init_mssfix' $(dirname "$srcdir/$ac_unique_file")/mtu.c])
-AM_CONDITIONAL([IMPLEMENTED_mtu2], [false])
+    ${GREP} '^frame_init_mssfix' $(dirname "$srcdir/$ac_unique_file")/mtu.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_mtu2], [true])
 
 AM_CONDITIONAL([IMPLEMENTED_sitnl_2_5], [test -f $(dirname "$srcdir/$ac_unique_file")/networking_sitnl.c])
 

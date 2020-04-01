@@ -52,174 +52,480 @@
 /*
  * Standard ethernet MTU
  */
-#define ETHERNET_MTU       1500
+// #define ETHERNET_MTU       1500
 
 /*
  * It is a fatal error if mtu is less than
  * this value for tun device.
  */
+#if !defined(TUN_MTU_MIN)
 #define TUN_MTU_MIN        100
+#endif
 
 /*
  * Default MTU of network over which tunnel data will pass by TCP/UDP.
  */
 #define LINK_MTU_DEFAULT   1500
 
+/* Link MTU to initialize with, pre PMTU discovery.
+ */
+#define LINK_MTU_STARTUP   250
+
 /*
  * Default MTU of tunnel device.
  */
+#if !defined(TUN_MTU_DEFAULT)
 #define TUN_MTU_DEFAULT    1500
+#endif
+
+/* Initial Receive buffer size. The largest UDP frame is 65535 - IP - UDP
+ * Since a server may receive both IPv4 and IPv6, a link receive buffer sized
+ * for IPv4 is good for IPv6 also (max datagrams size on IPv6 is smaller than
+ * on IPv4)
+ * 
+ * For practical reasons (traffic over internet is limited to 1500-byte frames),
+ * the size of the receive buffers are limited in configure.ac to 1500-ish
+ * level by default.
+ * 
+ * For deployments on gigabit ethernet, where VPN carries data-plane traffic,
+ * and performance is desirable, limit can be raised to jumbo-frame (9k-ish)
+ * size.
+ * 
+ * For experimental, the arbitrary limit can be eliminated by undefining
+ * LINK_MSS_MAX, which will allow up to 65k datagrams to be received.
+ * 
+ * In any case, inter-operation between peers with different limits is safe.
+ * RFC4821 PMTU discovery will ensure one peer does not send larger UDP frames
+ * than the other can receive.
+ * 
+ * For embedded systems, using smaller buffers will save a lot of RAM,
+ * compared to the unconstrained LINK_MSS.
+ * In that case, these receive buffers can be safely overridden at build time.
+ * If the peer implements the UNRELIABLE_RELIABLE bugfix, or is configured with
+ * appropriately small --link-mtu values, these values can be
+ * as small as desired, even 200 bytes, which would safely limit the tunnel
+ * MTU. In this case, build with -DLINK_MSS=200 (configure with 
+ * --enable-link-mss=200)
+ * 
+ */
+
+#if !defined(LINK_MSS)
+#define LINK_RECV_BUFSIZE_STARTUP(f) (IP_MAXPACKET  - \
+                                    sizeof(struct openvpn_iphdr) - \
+                                    sizeof(struct openvpn_udphdr))
+#else
+/* Oversize the reduced MSS buffers by one byte to detect truncation of
+ * incoming datagrams. 
+ */
+#define LINK_MSS_GUARD 1
+#define LINK_RECV_BUFSIZE_STARTUP(f)  ((LINK_MSS) + LINK_MSS_GUARD)
+#endif
+
+/* TUN read buffer will be oversized by 1 byte to detect when a packet larger
+ * than the configured MTU arrives (ie, if the MTU is manually changed)
+ *
+ */
+#define TUN_MSDU_GUARD 1
+
+/**  Media Access Control service data unit (MSDU) ie, TUN_MTU
+ */
+#define TUN_RECV_BUFSIZE_STARTUP (TUN_MTU_DEFAULT + TUN_MSDU_GUARD)
+
+/* Buffer size reserved for PING, OCC (aux)
+ * The biggest buffer users are:
+ * OCC_REPLY (string)
+ * OCC_MTU_LOAD (up to data payload room)
+ * 
+ * Normally it should be frame_get_data_payload_room (f),
+ * but it is allocated by the top multi context, where there a Path MTU does not
+ * exist.
+ */
+#define LINK_AUX_BUFSIZE(f)    LINK_RECV_BUFSIZE_STARTUP(f)
 
 /*
  * MTU Defaults for TAP devices
  */
 #define TAP_MTU_EXTRA_DEFAULT  32
 
+
+#if !defined(FIXME) || !defined(WORKAROUND_UNRELIABLE_RELIABLE)
 /*
  * Default MSSFIX value, used for reducing TCP MTU size
  */
 #define MSSFIX_DEFAULT     1450
 
+#endif
 
 /**************************************************************************/
 /**
  * Packet geometry parameters.
  */
+
 struct frame {
-  int link_mtu;                 /**< Maximum packet size to be sent over
-                                 *   the external network interface. */
+  /* The link struct members are detected after connecting */
+  struct {
+#if !defined(NDEBUG)
+    bool is_init;
+#endif
 
-  int link_mtu_dynamic;         /**< Dynamic MTU value for the external
-                                 *   network interface. */
-
-  int extra_frame;              /**< Maximum number of bytes that all
-                                 *   processing steps together could add.
-                                 *   @code
-                                 *   frame.link_mtu = "socket MTU" - extra_frame;
-                                 *   @endcode
+    /* MTU related parameters */
+    uint16_t encapsulation;     /* IP + UDP header size, depends on runtime 
+                                 * connection proto (ipv4/v6)
                                  */
 
-  int extra_buffer;             /**< Maximum number of bytes that
-                                 *   processing steps could expand the
-                                 *   internal work buffer.
-                                 *
-                                 *   This is used by the \link compression
-                                 *   Data Channel Compression
-                                 *   module\endlink to give enough working
-                                 *   space for worst-case expansion of
-                                 *   incompressible content. */
+    uint16_t pmtu;              /**< Maximum packet size to be sent over
+                                 *   the external network interface. */
 
-  int extra_tun;                /**< Maximum number of bytes in excess of
-                                 *   the tun/tap MTU that might be read
-                                 *   from or written to the virtual
-                                 *   tun/tap network interface. */
+  } link;
 
-  int extra_link;               /**< Maximum number of bytes in excess of
-                                 *   external network interface's MTU that
-                                 *   might be read from or written to it. */
+  /* The config struct members are set at startup */
+  struct {
+#if !defined(NDEBUG)
+    bool is_init;
+#endif
 
-  /*
-   * Alignment control
-   */
-# define FRAME_HEADROOM_MARKER_DECRYPT     (1<<0)
-# define FRAME_HEADROOM_MARKER_FRAGMENT    (1<<1)
-# define FRAME_HEADROOM_MARKER_READ_LINK   (1<<2)
-# define FRAME_HEADROOM_MARKER_READ_STREAM (1<<3)
-  unsigned int align_flags;
-  int align_adjust;
+    uint16_t tls_auth_size;     /* Size of AUTH message encapsulation,
+                                 * includes opcode, hmac, packet_id, session_id,
+                                 * and tls-auth.
+                                 * depends on startup --tls-auth configuration
+                                 */
+    uint16_t headroom;          /* Size needed to wrap link datagrams into
+                                 * other protocols. Used to tunnel vpn link
+                                 * thorugh a SOCKS5 UDP proxy
+                                 */
+
+    /* The crypto struct members are set at startup. In 2.4 they will be set
+     * after connecting, and negotiating a cipher.
+     */
+    struct {
+#if !defined(NDEBUG)
+      bool is_init;
+#endif
+
+      /* Crypto related parameters */
+      uint16_t headroom;          /* Size of DATA message encapsulation *header*
+                                   * Includes opcode, hmac, and IV, 
+                                   * Depends on startup 
+                                   * --cipher, --iv
+                                   * depends 
+                                   */
+
+      uint16_t overhead_sans_pad;
+                                  /* Size of DATA message encapsulation, including
+                                   * header and block-size related padding.
+                                   * Includes opcode, hmac, packetid, IV, but not
+                                   * any block-size related padding.
+                                   * Depends on startup 
+                                   * --cipher, --replay, --iv
+                                   */
+      uint16_t alignment;         /**< Encryption block size. DATA payload is a
+                                   * multiple of this block size.
+                                   */
+  #if defined(ENABLE_LZO) || defined(ENABLE_FRAGMENT)
+      struct {
+  #if defined(ENABLE_LZO)
+        uint16_t headroom;        /* Headroom within the DATA message needed for
+                                   * LZO compression. Typically, this is
+                                   * LZO_PREFIX_LEN or 0, depending on startup
+                                   * configuration
+                                   */
+  #endif
+  #if defined(ENABLE_FRAGMENT)
+        struct {
+          uint16_t headroom;      /* size of one fragmentation header. It is
+                                   * sizeof(fragment_header_type) or 0, depending
+                                   * on startup configuration.
+                                   *  fragmentation header.
+                                   */
+        } fragment;
+  #endif
+      } lzo;
+  #endif
+    } crypto;
+  } config;
+
 };
 
-/* Routines which read struct frame should use the macros below */
 
-/*
- * Overhead added to packet payload due to encapsulation
- */
-#define EXTRA_FRAME(f)           ((f)->extra_frame)
+#define P_OPCODE_LEN                   1
+#define ACK_SIZE(n) (sizeof (uint8_t) + ((n) ? SID_SIZE : 0) + sizeof (packet_id_type) * (n))
 
-/*
- * Delta between tun payload size and final TCP/UDP datagram size
- * (not including extra_link additions)
+/* The layers are as follows:
+ * Maintainers, please document this as structs { }, and rewrite/remove the
+ * scattered buf_prepends
+ * 
+ * IP               -
+ * +-UDP            -
+ *   +-DATA         - added by ssl.c: tls_post_encrypt()
+ *                  - includes P_OPCODE
+ *      +-PAYLOAD   - added by forward.c: encrypt_sign()
+ *        +-FRAG    - added by fragment.c: fragment_prepend_flags()
+ *                    includes optional startup configuration fragment_header_type.
+ *           +-COMP - compression added by lzo.c lzo_compress()
+ *                    includes optional startup/build configuration header "LZO_PREFIX"
+ *              +-PING      - added by ping.c: check_ping_send_dowork()
+ *                            includes 16-byte hardcoded magic string "ping_string"
+ *              +-OCC       - added by occ.c: check_send_occ_msg_dowork()
+ *                            includes 16-byte hardcoded magic string "occ_magic"
+ *                            optional build/startup configuration + runtime conditions
+ *                +-OP      - added by occ.c: check_send_occ_msg_dowork()
+ *                            includes option strings, exit notification, buffer-size negotiation
+ *
+ *              +-QUEUE     - added by multi,c: multi_get_queue()
+ *                            includes one IP packet with BCAST/MCAST dest.
+ *              +-TRAFFIC   - added by forward.c: process_incoming_tun()
+ *                            added by crypto.c: openvpn_encrypt()
+ *                            optional startup config IV and/or packet_id
+ *                            includes one IP packet received from TUN device.
+ * 
+ *                    
+ *   |
+ *   +-AUTH                 - added by ssl: write_control_auth()
+ *                            includes P_OPCODE, session ID, optional runtime ACKs, 
+ *                            optional startup configuration tls-auth HMAC.
+ *                            *note* the HMAC covers P_OPCODE and session id, as
+ *                            but the fields are reordered in swap_hmac()
+ *
+ *     +-RELIABLE           - added by reliable_mark_active_outgoing()
+ *                            includes packet_id
+ *       +-CONTROL          - added by ssl.c: key_state_read_ciphertext()
+ *                            SSL data stream
+ *       +-HARD_RESET       - scheduled by tls_session_init()
+ *                            no data
+ *       +-SOFT_RESET       - scheduled by key_state_init()
+ *                            no data
+ *       +-ACK              - scheduled by tls_process()
+ *                            no data
  */
-#define TUN_LINK_DELTA(f)        ((f)->extra_frame + (f)->extra_tun)
 
-/*
- * This is the size to "ifconfig" the tun or tap device.
- */
-#define TUN_MTU_SIZE(f)          ((f)->link_mtu - TUN_LINK_DELTA(f))
-#define TUN_MTU_SIZE_DYNAMIC(f)  ((f)->link_mtu_dynamic - TUN_LINK_DELTA(f))
+#include "session_id.h"
+#include "packet_id.h"
 
-/*
- * This is the maximum packet size that we need to be able to
- * read from or write to a tun or tap device.  For example,
- * a tap device ifconfiged to an MTU of 1200 might actually want
- * to return a packet size of 1214 on a read().
+/* 
+ * All _ENCAPSULATION macros are with respect to MTU as used in RFCs, ie, IP
+ * layer MTU.
+ * Eg, LINK_ENCAPSULATION is the number of bytes the OS will add to encapsulate
+ * a message written to a DGRAM socket into an IP packet. It includes UDP and IP
+ * headers
  */
-#define PAYLOAD_SIZE(f)          ((f)->link_mtu - (f)->extra_frame)
-#define PAYLOAD_SIZE_DYNAMIC(f)  ((f)->link_mtu_dynamic - (f)->extra_frame)
 
-/*
- * Max size of a payload packet after encryption, compression, etc.
- * overhead is added.
+/* Number of encapsulation bytes added by layer4, transport layer, plus
+ * write_control_auth() which adds on a copy of the buffer.
  */
-#define EXPANDED_SIZE(f)         ((f)->link_mtu)
-#define EXPANDED_SIZE_DYNAMIC(f) ((f)->link_mtu_dynamic)
-#define EXPANDED_SIZE_MIN(f)     (TUN_MTU_MIN + TUN_LINK_DELTA(f))
+#define RELIABLE_HEADROOM(f,numacks) ( \
+                (f)->config.headroom + \
+                P_OPCODE_LEN + \
+                SID_SIZE + \
+                ACK_SIZE(numacks))
 
-/*
- * These values are used as maximum size constraints
- * on read() or write() from TUN/TAP device or TCP/UDP port.
- */
-#define MAX_RW_SIZE_TUN(f)       (PAYLOAD_SIZE(f))
-#define MAX_RW_SIZE_LINK(f)      (EXPANDED_SIZE(f) + (f)->extra_link)
+#define RELIABLE_ENCAPSULATION(f,numacks) \
+                ((f)->link.encapsulation + \
+                RELIABLE_HEADROOM(f,numacks) - \
+                (f)->config.headroom)
 
-/*
- * Control buffer headroom allocations to allow for efficient prepending.
- */
-#define FRAME_HEADROOM_BASE(f)     (TUN_LINK_DELTA(f) + (f)->extra_buffer + (f)->extra_link)
-#define FRAME_HEADROOM(f)          frame_headroom(f, 0)
-#define FRAME_HEADROOM_ADJ(f, fm)  frame_headroom(f, fm)
+#define CONTROL_HEADROOM(f,numacks) \
+                (sizeof (packet_id_type) + \
+                RELIABLE_HEADROOM(f,numacks) + \
+                (f)->config.tls_auth_size)
 
-/*
- * Max size of a buffer used to build a packet for output to
- * the TCP/UDP port.
+#define CONTROL_ENCAPSULATION(f,numacks) \
+                (sizeof (packet_id_type) + \
+                RELIABLE_ENCAPSULATION(f, numacks) + \
+                (f)->config.tls_auth_size)
+
+/* a PROBE is CONTROL with 0 acks */
+#define PROBE_ENCAPSULATION(f)  CONTROL_ENCAPSULATION(f,0)
+
+#define DATA_HEADROOM(f) ( \
+                (f)->config.headroom + \
+                P_OPCODE_LEN + \
+                SID_SIZE + \
+                ((f)->config.crypto.headroom))
+
+#define DATA_ENCAPSULATION(f) \
+                ((f)->link.encapsulation + \
+                P_OPCODE_LEN + \
+                SID_SIZE + \
+                ((f)->config.crypto.overhead_sans_pad))
+
+/* Give no headroom, this will crash something. Fixme. */
+#define FIXME_HEADROOM(f) (0)
+
+/* Initialize packetization parameters dependent on runtime configuration.
  */
-#define BUF_SIZE(f)              (TUN_MTU_SIZE(f) + FRAME_HEADROOM_BASE(f) * 2)
+void
+frame_init_config (struct frame *frame,
+                   uint16_t tls_auth_size,
+                   uint16_t headroom);
+
+/* Initialize packetization parameters dependent on cipher selection.
+ */
+void
+frame_init_crypto (struct frame *frame,
+#if defined(ENABLE_LZO)
+            uint16_t lzo_headroom,
+#endif
+#if defined(ENABLE_FRAGMENT)
+            uint16_t fragment_headroom,
+#endif
+            uint16_t headroom,
+            uint16_t overhead,
+            uint16_t alignment);
+
+/* Initialize packetization parameters dependent on the connected link.
+ */
+void
+frame_init_link (struct frame *frame,
+                 int proto);
+
+uint16_t inline
+frame_get_control_payload_room (const struct frame *frame, int num_acks);
+
+uint16_t inline
+frame_get_control_headroom (const struct frame *frame, int num_acks);
+
+uint16_t inline
+frame_get_probe_encapsulation (const struct frame *frame);
+
+uint16_t inline
+frame_get_reliable_encapsulation (const struct frame *frame, int num_acks);
+
+uint16_t inline
+frame_get_reliable_headroom (const struct frame *frame, int num_acks);
+
+uint16_t inline
+frame_get_control_encapsulation (const struct frame *frame, int num_acks);
+
+uint16_t inline
+frame_get_link_bufsize (const struct frame *frame);
+
+uint16_t inline
+frame_get_link_encapsulation (const struct frame *frame);
+
+uint16_t inline
+frame_get_link_pmtu (const struct frame *frame);
+
+
+#if 0
+/* The amount of compressed and fragmented data that can be encrypted such that
+ * the link PMTU would be filled.
+ * 
+ */
+uint16_t inline
+frame_get_data_payload_room (const struct frame *frame);
+#endif
+
+/* Headroom needed to encrypt the "DATA" layer
+ */
+uint16_t inline
+frame_get_data_headroom (const struct frame *frame);
+
+/* Headroom needed to compress, fragment and encrypt the "COMP" layer
+ */
+uint16_t inline
+frame_get_data_comp_headroom (const struct frame *frame);
+
+#if defined(ENABLE_FRAGMENT)
+/* Headroom needed to fragment and encrypt the "FRAG" layer.
+ * 
+ */
+uint16_t inline
+frame_get_data_frag_headroom (const struct frame *frame);
+
+/* The amount of compressed data that can be sent for outgoing fragmentation
+ */
+uint16_t inline
+frame_get_data_frag_payload_room (const struct frame *frame);
+#endif
+
+uint16_t inline
+frame_get_data_overhead (const struct frame *frame, uint16_t datalen);
+
+uint16_t inline
+frame_get_data_padding (const struct frame *frame, uint16_t datalen);
+
+uint16_t inline
+frame_get_data_padding_max (const struct frame *frame);
+
+uint16_t inline
+frame_get_data_comp_encapsulation (const struct frame *frame);
+
+/* The amount of uncompressed data that can be received from TUN, which after
+ * compression, fragmenting, and encryption would fill the PMTU exactly.
+ * 
+ * If the host were to send datagrams with PMTUDISC_DO flag set, those larger
+ * than this would be rejected with PTB (Packet Too Big) ICMPs.
+ * 
+ * Without the PMTUDISC_DO flag, datagrams larger than this should be fragmented
+ * by the host OS before writing to the TUN device. Otherwise, internet routers
+ * en-route to the destination will fragment the encrypted datagram.
+ * 
+ * In client mode (ie, a single connection using the TUN), the TUN MTU can be
+ * set to this value.
+ */
+
+uint16_t inline
+frame_get_data_comp_payload_room (const struct frame *frame);
+
+/* Calculate the amount of overhead needed to compress, fragment and encrypt
+ * a TUN packet of a given length.
+ * 
+ */
+uint16_t inline
+frame_get_data_comp_overhead (const struct frame *frame, uint16_t datalen);
+
+/* Calculate the minimum amount of overhead needed to compress, fragment and
+ * encrypt a TUN packet of optimal length.
+ * 
+ * This is helpful to calculate the maximum possible TUN MTU given a LINK MTU,
+ * as it returns the minimum amount of overhead by assuming a packet size that
+ * requires the minimum amount of encryption padding for the configured cipher
+ */
+/*
+uint16_t inline
+frame_get_data_comp_min_overhead (const struct frame *frame);
+*/
+uint16_t inline
+frame_get_buf_size (const struct frame *frame);
+    
+#define ENCRYPTION_BUFSIZE(f,plaintext_size) \
+            plaintext_size + \
+            frame_get_data_overhead(f, plaintext_size)
+
+#define DECRYPTION_BUFSIZE(f,ciphertext_size) \
+            ciphertext_size - \
+            frame_get_data_headroom(f)
+
+#define LZO_COMPRESSION_BUFSIZE(f,input_size) \
+            input_size + \
+            LZO_PREFIX_LEN + \
+            LZO_EXTRA_BUFFER (input_size) + \
+            frame_get_data_overhead(f, input_size + LZO_PREFIX_LEN + LZO_EXTRA_BUFFER (input_size))
+
+
+#define LZO_DECOMPRESSION_BUFSIZE(f,input_size) \
+            input_size - \
+            LZO_PREFIX_LEN - \
+            LZO_SHRINK_BUFFER (input_size) - \
+            frame_get_data_headroom(f)
+
 
 /*
  * Function prototypes.
  */
 
-void frame_finalize (struct frame *frame,
-		     bool link_mtu_defined,
-		     int link_mtu,
-		     bool tun_mtu_defined,
-		     int tun_mtu);
-
-void frame_subtract_extra (struct frame *frame, const struct frame *src);
-
 void frame_print (const struct frame *frame,
 		  int level,
 		  const char *prefix);
 
-void set_mtu_discover_type (int sd, int mtu_type);
-int translate_mtu_discover_type_name (const char *name);
-
-/*
- * frame_set_mtu_dynamic and flags
- */
-
-#define SET_MTU_TUN         (1<<0) /* use tun/tap rather than link sizing */
-#define SET_MTU_UPPER_BOUND (1<<1) /* only decrease dynamic MTU */
-
-void frame_set_mtu_dynamic (struct frame *frame, int mtu, unsigned int flags);
+void frame_set_mtu (struct frame *frame, uint16_t mtu);
 
 /*
  * allocate a buffer for socket or tun layer
  */
 void alloc_buf_sock_tun (struct buffer *buf,
 			 const struct frame *frame,
-			 const bool tuntap_buffer,
-			 const unsigned int align_mask);
+			 const bool tuntap_buffer);
 
 /*
  * EXTENDED_SOCKET_ERROR_CAPABILITY functions -- print extra error info
@@ -233,76 +539,5 @@ void set_sock_extended_error_passing (int sd);
 const char *format_extended_socket_error (int fd, int *mtu, struct gc_arena *gc);
 
 #endif
-
-/*
- * Calculate a starting offset into a buffer object, dealing with
- * headroom and alignment issues.
- */
-static inline int
-frame_headroom (const struct frame *f, const unsigned int flag_mask)
-{
-  const int offset = FRAME_HEADROOM_BASE (f);
-  const int adjust = (flag_mask & f->align_flags) ? f->align_adjust : 0;
-  const int delta = ((PAYLOAD_ALIGN << 24) - (offset + adjust)) & (PAYLOAD_ALIGN - 1);
-  return offset + delta;
-}
-
-/*
- * frame member adjustment functions
- */
-
-static inline void
-frame_add_to_link_mtu (struct frame *frame, const int increment)
-{
-  frame->link_mtu += increment;
-}
-
-static inline void
-frame_add_to_extra_frame (struct frame *frame, const int increment)
-{
-  frame->extra_frame += increment;
-}
-
-static inline void
-frame_add_to_extra_tun (struct frame *frame, const int increment)
-{
-  frame->extra_tun += increment;
-}
-
-static inline void
-frame_add_to_extra_link (struct frame *frame, const int increment)
-{
-  frame->extra_link += increment;
-}
-
-static inline void
-frame_add_to_extra_buffer (struct frame *frame, const int increment)
-{
-  frame->extra_buffer += increment;
-}
-
-static inline void
-frame_add_to_align_adjust (struct frame *frame, const int increment)
-{
-  frame->align_adjust += increment;
-}
-
-static inline void
-frame_align_to_extra_frame (struct frame *frame)
-{
-  frame->align_adjust = frame->extra_frame + frame->extra_link;
-}
-
-static inline void
-frame_or_align_flags (struct frame *frame, const unsigned int flag_mask)
-{
-  frame->align_flags |= flag_mask;
-}
-
-static inline bool
-frame_defined (const struct frame *frame)
-{
-  return frame->link_mtu > 0;
-}
 
 #endif
