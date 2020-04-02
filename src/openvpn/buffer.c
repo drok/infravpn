@@ -81,6 +81,26 @@ alloc_buf (size_t size)
   return buf;
 }
 
+void
+#ifdef DMALLOC
+realloc_buf_debug (struct buffer *buf, size_t size, const char *file, int line)
+#else
+realloc_buf (struct buffer *buf, size_t size)
+#endif
+{
+
+  if (!buf_size_valid (size))
+    buf_size_error (size);
+  buf->capacity = (int)size;
+
+#ifdef DMALLOC
+  buf->data = openvpn_drealloc (file, line, buf->data, size);
+#else
+  buf->data = realloc (buf->data, size);
+#endif
+  check_malloc_return(buf->data);
+}
+
 struct buffer
 #ifdef DMALLOC
 alloc_buf_gc_debug (size_t size, struct gc_arena *gc, const char *file, int line)

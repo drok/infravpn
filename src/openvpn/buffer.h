@@ -145,6 +145,7 @@ void buf_size_error (const size_t size);
 #ifdef DMALLOC
 
 #define alloc_buf(size)               alloc_buf_debug (size, __FILE__, __LINE__)
+#define realloc_buf(buf, size)        realloc_buf_debug ((buf), (size), __FILE__, __LINE__)
 #define alloc_buf_gc(size, gc)        alloc_buf_gc_debug (size, gc, __FILE__, __LINE__);
 #define clone_buf(buf)                clone_buf_debug (buf, __FILE__, __LINE__);
 #define gc_malloc(size, clear, arena) gc_malloc_debug (size, clear, arena, __FILE__, __LINE__)
@@ -152,6 +153,7 @@ void buf_size_error (const size_t size);
 #define string_alloc_buf(str, gc)     string_alloc_buf_debug (str, gc, __FILE__, __LINE__)
 
 struct buffer alloc_buf_debug (size_t size, const char *file, int line);
+void realloc_buf_debug (struct buffer *buf, size_t size, const char *file, int line);
 struct buffer alloc_buf_gc_debug (size_t size, struct gc_arena *gc, const char *file, int line);
 struct buffer clone_buf_debug (const struct buffer* buf, const char *file, int line);
 void *gc_malloc_debug (size_t size, bool clear, struct gc_arena *a, const char *file, int line);
@@ -161,6 +163,7 @@ struct buffer string_alloc_buf_debug (const char *str, struct gc_arena *gc, cons
 #else
 
 struct buffer alloc_buf (size_t size);
+void realloc_buf (struct buffer *buf, size_t size);
 struct buffer alloc_buf_gc (size_t size, struct gc_arena *gc); /* allocate buffer with garbage collection */
 struct buffer clone_buf (const struct buffer* buf);
 void *gc_malloc (size_t size, bool clear, struct gc_arena *a);

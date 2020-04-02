@@ -89,6 +89,8 @@
 
 #define openvpn_dmalloc(file, line, size) dmalloc_malloc((file), (line), (size), DMALLOC_FUNC_MALLOC, 0, 0)
 
+#define openvpn_drealloc(file, line, ptr, size) dmalloc_realloc((file), (line), (ptr), (size), DMALLOC_FUNC_REALLOC, 0)
+
 /*
  * This #define will put the line number of the log
  * file position where leaked memory was allocated instead
