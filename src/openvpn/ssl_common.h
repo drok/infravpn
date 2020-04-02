@@ -282,8 +282,10 @@ struct tls_options
   struct crypto_options tls_auth;
   struct key_ctx_bi tls_auth_key;
 
+#if defined(DONT_PACK_CONTROL_FRAMES)
   /* frame parameters for TLS control channel */
   struct frame frame;
+#endif
 
   /* used for username/password authentication */
   const char *auth_user_pass_verify_script;

@@ -270,6 +270,14 @@ reliable_ack_print (struct buffer *buf, bool verbose, struct gc_arena *gc)
   return BSTR (&out);
 }
 
+/* Calculate the amount of space in bytes that are needed to transmit
+ * a given number of acks withing a single frame.
+ */
+int
+reliable_ack_get_frame_extra(int n_acks)
+{
+  return ACK_SIZE(n_acks);
+}
 /*
  * struct reliable member functions.
  */

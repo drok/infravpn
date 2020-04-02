@@ -301,7 +301,7 @@ tls_limit_reneg_bytes (const cipher_kt_t *cipher, int *reneg_bytes)
 void
 tls_adjust_frame_parameters(struct frame *frame)
 {
-  frame_add_to_extra_frame (frame, 1); /* space for opcode */
+  frame_add_to_extra_frame (frame, P_OPCODE_LEN); /* space for opcode */
 }
 
 /*
@@ -749,8 +749,15 @@ is_hard_reset (int op, int key_method)
  *                       initialized.  This structure should already have
  *                       been allocated before calling this function.
  */
+#if defined(DONT_PACK_CONTROL_FRAMES)
 static void
 key_state_init (struct tls_session *session, struct key_state *ks)
+#else
+static void
+key_state_init (struct tls_session *session,
+                struct key_state *ks,
+                const struct frame *frame)
+#endif
 {
   update_time ();
 
@@ -789,6 +796,7 @@ key_state_init (struct tls_session *session, struct key_state *ks)
   /* allocate buffers */
   ks->plaintext_read_buf = alloc_buf (TLS_CHANNEL_BUF_SIZE);
   ks->plaintext_write_buf = alloc_buf (TLS_CHANNEL_BUF_SIZE);
+#if defined(DONT_PACK_CONTROL_FRAMES)
   ks->ack_write_buf = alloc_buf (BUF_SIZE (&session->opt->frame));
   reliable_init (ks->send_reliable, BUF_SIZE (&session->opt->frame),
 		 FRAME_HEADROOM (&session->opt->frame), TLS_RELIABLE_N_SEND_BUFFERS,
@@ -796,6 +804,15 @@ key_state_init (struct tls_session *session, struct key_state *ks)
   reliable_init (ks->rec_reliable, BUF_SIZE (&session->opt->frame),
 		 FRAME_HEADROOM (&session->opt->frame), TLS_RELIABLE_N_REC_BUFFERS,
 		 false);
+#else
+  ks->ack_write_buf = alloc_buf (BUF_SIZE (frame));
+  reliable_init (ks->send_reliable, BUF_SIZE (frame),
+		 FRAME_HEADROOM (frame), TLS_RELIABLE_N_SEND_BUFFERS,
+		 ks->key_id ? false : session->opt->xmit_hold);
+  reliable_init (ks->rec_reliable, BUF_SIZE (frame),
+		 FRAME_HEADROOM (frame), TLS_RELIABLE_N_REC_BUFFERS,
+		 false);
+#endif
   reliable_set_timeout (ks->send_reliable, session->opt->packet_timeout);
 
   /* init packet ID tracker */
@@ -898,8 +915,13 @@ static inline void tls_session_set_self_referential_pointers (struct tls_session
  *                       initialized.  This structure should already have
  *                       been allocated before calling this function.
  */
+#if defined(DONT_PACK_CONTROL_FRAMES)
 static void
 tls_session_init (struct tls_multi *multi, struct tls_session *session)
+#else
+static void
+tls_session_init (struct tls_multi *multi, struct tls_session *session, const struct frame *frame)
+#endif
 {
   struct gc_arena gc = gc_new ();
 
@@ -943,7 +965,11 @@ tls_session_init (struct tls_multi *multi, struct tls_session *session)
   /* load most recent packet-id to replay protect on --tls-auth */
   packet_id_persist_load_obj (session->tls_auth.pid_persist, session->tls_auth.packet_id);
 
+#if defined(DONT_PACK_CONTROL_FRAMES)
   key_state_init (session, &session->key[KS_PRIMARY]);
+#else
+  key_state_init (session, &session->key[KS_PRIMARY], frame);
+#endif
 
   dmsg (D_TLS_DEBUG, "TLS: tls_session_init: new session object, sid=%s",
        session_id_print (&session->session_id, &gc));
@@ -988,8 +1014,17 @@ tls_session_free (struct tls_session *session, bool clear)
 /** @} addtogroup control_processor */
 
 
+#if defined(DONT_PACK_CONTROL_FRAMES)
 static void
 move_session (struct tls_multi* multi, int dest, int src, bool reinit_src)
+#else
+static void
+move_session (struct tls_multi* multi, 
+              int dest, 
+              int src, 
+              bool reinit_src,
+              const struct frame *frame)
+#endif
 {
   msg (D_TLS_DEBUG_LOW, "TLS: move_session: dest=%s src=%s reinit_src=%d",
        session_index_name(dest),
@@ -1003,19 +1038,34 @@ move_session (struct tls_multi* multi, int dest, int src, bool reinit_src)
   tls_session_set_self_referential_pointers (&multi->session[dest]);
 
   if (reinit_src)
+#if defined(DONT_PACK_CONTROL_FRAMES)
     tls_session_init (multi, &multi->session[src]);
+#else
+    tls_session_init (multi, &multi->session[src], frame);
+#endif
   else
     CLEAR (multi->session[src]);
 
   dmsg (D_TLS_DEBUG, "TLS: move_session: exit");
 }
 
+#if defined(DONT_PACK_CONTROL_FRAMES)
 static void
 reset_session (struct tls_multi *multi, struct tls_session *session)
 {
   tls_session_free (session, false);
   tls_session_init (multi, session);
 }
+#else
+static void
+reset_session (struct tls_multi *multi,
+               struct tls_session *session,
+               const struct frame *frame)
+{
+  tls_session_free (session, false);
+  tls_session_init (multi, session, frame);
+}
+#endif
 
 #if 0
 /*
@@ -1099,6 +1149,7 @@ tls_multi_init (struct tls_options *tls_options)
 void
 tls_multi_init_finalize (struct tls_multi* multi, const struct frame* frame)
 {
+#if defined(DONT_PACK_CONTROL_FRAMES)
   tls_init_control_channel_frame_parameters (frame, &multi->opt.frame);
   
   /* initialize the active and untrusted sessions */
@@ -1107,6 +1158,14 @@ tls_multi_init_finalize (struct tls_multi* multi, const struct frame* frame)
 
   if (!multi->opt.single_session)
     tls_session_init (multi, &multi->session[TM_UNTRUSTED]);
+#else
+  /* initialize the active and untrusted sessions */
+
+  tls_session_init (multi, &multi->session[TM_ACTIVE], frame);
+
+  if (!multi->opt.single_session)
+    tls_session_init (multi, &multi->session[TM_UNTRUSTED], frame);
+#endif
 }
 
 /*
@@ -1126,18 +1185,22 @@ tls_auth_standalone_init (struct tls_options *tls_options,
   tas->tls_auth_options.key_ctx_bi = &tas->tls_auth_key;
   tas->tls_auth_options.flags |= CO_PACKET_ID_LONG_FORM;
 
+#if defined(DONT_PACK_CONTROL_FRAMES)
   /* get initial frame parms, still need to finalize */
   tas->frame = tls_options->frame;
+#endif
 
   return tas;
 }
 
+#if defined(DONT_PACK_CONTROL_FRAMES)
 void
 tls_auth_standalone_finalize (struct tls_auth_standalone *tas,
 			      const struct frame *frame)
 {
   tls_init_control_channel_frame_parameters (frame, &tas->frame);
 }
+#endif
 
 /*
  * Set local and remote option compatibility strings.
@@ -1270,7 +1333,7 @@ write_control_auth (struct tls_session *session,
   ASSERT (reliable_ack_write
 	  (ks->rec_ack, buf, &ks->session_id_remote, max_ack, prepend_ack));
   ASSERT (session_id_write_prepend (&session->session_id, buf));
-  ASSERT (header = buf_prepend (buf, 1));
+  ASSERT (header = buf_prepend (buf, P_OPCODE_LEN));
   *header = ks->key_id | (opcode << P_OPCODE_SHIFT);
   if (session->tls_auth.key_ctx_bi->encrypt.hmac)
     {
@@ -1702,8 +1765,13 @@ flush_payload_buffer (struct key_state *ks)
  * Move the active key to the lame duck key and reinitialize the
  * active key.
  */
+#if defined(DONT_PACK_CONTROL_FRAMES)
 static void
 key_state_soft_reset (struct tls_session *session)
+#else
+static void
+key_state_soft_reset (struct tls_session *session, const struct frame *frame)
+#endif
 {
   struct key_state *ks = &session->key[KS_PRIMARY]; 	   /* primary key */
   struct key_state *ks_lame = &session->key[KS_LAME_DUCK]; /* retiring key */
@@ -1712,7 +1780,11 @@ key_state_soft_reset (struct tls_session *session)
   key_state_free (ks_lame, false);
   *ks_lame = *ks;
 
+#if defined(DONT_PACK_CONTROL_FRAMES)
   key_state_init (session, ks);
+#else
+  key_state_init (session, ks, frame);
+#endif
   ks->session_id_remote = ks_lame->session_id_remote;
   ks->remote_addr = ks_lame->remote_addr;
 }
@@ -2247,6 +2319,9 @@ tls_process (struct tls_multi *multi,
 	     struct tls_session *session,
 	     struct buffer *to_link,
 	     struct link_socket_actual **to_link_addr,
+#if !defined(DONT_PACK_CONTROL_FRAMES)
+             const struct frame *frame,
+#endif
 	     struct link_socket_info *to_link_socket_info,
 	     interval_t *wakeup)
 {
@@ -2277,7 +2352,11 @@ tls_process (struct tls_multi *multi,
 	   (int)(ks->established + session->opt->renegotiate_seconds - now),
 	   ks->n_bytes, session->opt->renegotiate_bytes,
 	   ks->n_packets, session->opt->renegotiate_packets);
+#if defined(DONT_PACK_CONTROL_FRAMES)
       key_state_soft_reset (session);
+#else
+      key_state_soft_reset (session, frame);
+#endif
     }
 
   /* Kill lame duck key transition_window seconds after primary key negotiation */
@@ -2582,7 +2661,7 @@ tls_process (struct tls_multi *multi,
   if (!to_link->len && !reliable_ack_empty (ks->rec_ack))
     {
       buf = &ks->ack_write_buf;
-      ASSERT (buf_init (buf, FRAME_HEADROOM (&multi->opt.frame)));
+      ASSERT (buf_init (buf, FRAME_HEADROOM (TLS_FRAME)));
       write_control_auth (session, ks, buf, to_link_addr, P_ACK_V1,
 			  RELIABLE_ACK_SIZE, false);
       *to_link = *buf;
@@ -2643,6 +2722,9 @@ int
 tls_multi_process (struct tls_multi *multi,
 		   struct buffer *to_link,
 		   struct link_socket_actual **to_link_addr,
+#if !defined(DONT_PACK_CONTROL_FRAMES)
+                   const struct frame *frame,
+#endif
 		   struct link_socket_info *to_link_socket_info,
 		   interval_t *wakeup)
 {
@@ -2687,6 +2769,9 @@ tls_multi_process (struct tls_multi *multi,
 	  update_time ();
 
 	  if (tls_process (multi, session, to_link, &tla,
+#if !defined(DONT_PACK_CONTROL_FRAMES)
+                           frame,
+#endif
 			   to_link_socket_info, wakeup))
 	    active = TLSMP_ACTIVE;
 
@@ -2717,9 +2802,15 @@ tls_multi_process (struct tls_multi *multi,
 	      if (i == TM_ACTIVE
 		  && ks_lame->state >= S_ACTIVE
 		  && !multi->opt.single_session)
+#if defined(DONT_PACK_CONTROL_FRAMES)
 		move_session (multi, TM_LAME_DUCK, TM_ACTIVE, true);
 	      else
 		reset_session (multi, session);
+#else
+		move_session (multi, TM_LAME_DUCK, TM_ACTIVE, true, frame);
+	      else
+		reset_session (multi, session, frame);
+#endif
 	    }
 	}
     }
@@ -2746,7 +2837,11 @@ tls_multi_process (struct tls_multi *multi,
    * TLS control channel but not on the tunnel channel.
    */
   if (DECRYPT_KEY_ENABLED (multi, &multi->session[TM_UNTRUSTED].key[KS_PRIMARY])) {
+#if defined(DONT_PACK_CONTROL_FRAMES)
     move_session (multi, TM_ACTIVE, TM_UNTRUSTED, true);
+#else
+    move_session (multi, TM_ACTIVE, TM_UNTRUSTED, true, frame);
+#endif
     msg (D_TLS_DEBUG_LOW, "TLS: tls_multi_process: untrusted session promoted to %strusted",
 	 tas == TLS_AUTHENTICATION_SUCCEEDED ? "" : "semi-");
   }
@@ -2824,6 +2919,9 @@ bool
 tls_pre_decrypt (struct tls_multi *multi,
 		 const struct link_socket_actual *from,
 		 struct buffer *buf,
+#if !defined(DONT_PACK_CONTROL_FRAMES)
+                 const struct frame *frame,
+#endif
 		 struct crypto_options *opt)
 {
   struct gc_arena gc = gc_new ();
@@ -3139,7 +3237,11 @@ tls_pre_decrypt (struct tls_multi *multi,
 		  if (!read_control_auth (buf, &session->tls_auth, from))
 		    goto error;
 
+#if defined(DONT_PACK_CONTROL_FRAMES)
 		  key_state_soft_reset (session);
+#else
+		  key_state_soft_reset (session, frame);
+#endif
 
 		  dmsg (D_TLS_DEBUG,
 		       "TLS: received P_CONTROL_SOFT_RESET_V1 s=%d sid=%s",
@@ -3339,6 +3441,7 @@ tls_pre_decrypt_lite (const struct tls_auth_standalone *tas,
 	  goto error;
 	}
 
+#if defined(DONT_PACK_CONTROL_FRAMES)
       if (buf->len > EXPANDED_SIZE_DYNAMIC (&tas->frame))
 	{
 	  dmsg (D_TLS_STATE_ERRORS,
@@ -3348,6 +3451,7 @@ tls_pre_decrypt_lite (const struct tls_auth_standalone *tas,
 	       EXPANDED_SIZE_DYNAMIC (&tas->frame));
 	  goto error;
 	}
+#endif
 
       {
 	struct buffer newbuf = clone_buf (buf);

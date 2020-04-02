@@ -105,7 +105,9 @@ struct link_socket_info
   const struct plugin_list *plugins;
   bool remote_float;  
   int proto;                    /* Protocol (PROTO_x defined below) */
+#if EXTENDED_SOCKET_ERROR_CAPABILITY
   int mtu_changed;              /* Set to true when mtu value is changed */
+#endif
 };
 
 /*

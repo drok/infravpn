@@ -55,6 +55,7 @@
 /* packet opcode (high 5 bits) and key-id (low 3 bits) are combined in one byte */
 #define P_KEY_ID_MASK                  0x07
 #define P_OPCODE_SHIFT                 3
+#define P_OPCODE_LEN                   1
 
 /* packet opcodes -- the V1 is intended to allow protocol changes in the future */
 #define P_CONTROL_HARD_RESET_CLIENT_V1 1     /* initial key from client, forget previous state */
@@ -141,7 +142,9 @@ struct tls_auth_standalone
 {
   struct key_ctx_bi tls_auth_key;
   struct crypto_options tls_auth_options;
+#if defined(DONT_PACK_CONTROL_FRAMES)
   struct frame frame;
+#endif
 };
 
 /*
@@ -251,6 +254,9 @@ void tls_multi_free (struct tls_multi *multi, bool clear);
 int tls_multi_process (struct tls_multi *multi,
 		       struct buffer *to_link,
 		       struct link_socket_actual **to_link_addr,
+#if !defined(DONT_PACK_CONTROL_FRAMES)
+                       const struct frame *frame,
+#endif
 		       struct link_socket_info *to_link_socket_info,
 		       interval_t *wakeup);
 
@@ -309,6 +315,9 @@ int tls_multi_process (struct tls_multi *multi,
 bool tls_pre_decrypt (struct tls_multi *multi,
 		      const struct link_socket_actual *from,
 		      struct buffer *buf,
+#if !defined(DONT_PACK_CONTROL_FRAMES)
+                      const struct frame *frame,
+#endif
 		      struct crypto_options *opt);
 
 

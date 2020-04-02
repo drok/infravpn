@@ -204,6 +204,9 @@ void reliable_free (struct reliable *rel);
 /* add to extra_frame the maximum number of bytes we will need for reliable_ack_write */
 void reliable_ack_adjust_frame_parameters (struct frame* frame, int max);
 
+/* How many bytes will it take to transmit n acks in one frame? */
+int reliable_ack_get_frame_extra (int n_acks);
+
 /** @} name Functions for initialization and cleanup */
 
 

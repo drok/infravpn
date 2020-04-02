@@ -66,7 +66,9 @@ multi_get_create_instance_udp (struct multi_context *m)
       else
 	{
 	  if (!m->top.c2.tls_auth_standalone
-	      || tls_pre_decrypt_lite (m->top.c2.tls_auth_standalone, &m->top.c2.from, &m->top.c2.buf))
+	      || tls_pre_decrypt_lite (m->top.c2.tls_auth_standalone,
+                                       &m->top.c2.from,
+                                       &m->top.c2.buf))
 	    {
 	      if (frequency_limit_event_allowed (m->new_connection_limiter))
 		{

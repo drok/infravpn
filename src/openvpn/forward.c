@@ -97,6 +97,10 @@ check_tls_dowork (struct context *c)
     {
       const int tmp_status = tls_multi_process
 	(c->c2.tls_multi, &c->c2.to_link, &c->c2.to_link_addr,
+#if !defined(DONT_PACK_CONTROL_FRAMES)
+         &c->c2.frame,
+#endif
+
 	 get_link_socket_info (c), &wakeup);
       if (tmp_status == TLSMP_ACTIVE)
 	{
@@ -384,6 +388,7 @@ check_fragment_dowork (struct context *c)
 {
   struct link_socket_info *lsi = get_link_socket_info (c);
 
+#if EXTENDED_SOCKET_ERROR_CAPABILITY
   /* OS MTU Hint? */
   if (lsi->mtu_changed && c->c2.ipv4_tun)
     {
@@ -391,6 +396,7 @@ check_fragment_dowork (struct context *c)
 			     c->options.ce.proto);
       lsi->mtu_changed = false;
     }
+#endif
 
   if (fragment_outgoing_defined (c->c2.fragment))
     {
@@ -808,7 +814,11 @@ process_incoming_link (struct context *c)
 	   * will load crypto_options with the correct encryption key
 	   * and return false.
 	   */
-	  if (tls_pre_decrypt (c->c2.tls_multi, &c->c2.from, &c->c2.buf, &c->c2.crypto_options))
+	  if (tls_pre_decrypt (c->c2.tls_multi, &c->c2.from, &c->c2.buf,
+#if !defined(DONT_PACK_CONTROL_FRAMES)
+                          &c->c2.frame,
+#endif
+                          &c->c2.crypto_options))
 	    {
 	      interval_action (&c->c2.tmp_int);
 

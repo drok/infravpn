@@ -2374,14 +2374,18 @@ do_init_crypto_tls (struct context *c, const unsigned int flags)
       to.tls_auth_key = c->c1.ks.tls_auth_key;
       to.tls_auth.pid_persist = &c->c1.pid_persist;
       to.tls_auth.flags |= CO_PACKET_ID_LONG_FORM;
+#if defined(DONT_PACK_CONTROL_FRAMES)
       crypto_adjust_frame_parameters (&to.frame,
 				      &c->c1.ks.key_type,
 				      false, false, true, true);
+#endif
     }
 
+#if defined(DONT_PACK_CONTROL_FRAMES)
   /* If we are running over TCP, allow for
      length prefix */
   socket_adjust_frame_parameters (&to.frame, options->ce.proto);
+#endif
 
   /*
    * Initialize OpenVPN's master TLS-mode object.
@@ -2399,17 +2403,21 @@ do_init_finalize_tls_frame (struct context *c)
   if (c->c2.tls_multi)
     {
       tls_multi_init_finalize (c->c2.tls_multi, &c->c2.frame);
+#if defined(DONT_PACK_CONTROL_FRAMES)
       ASSERT (EXPANDED_SIZE (&c->c2.tls_multi->opt.frame) <=
 	      EXPANDED_SIZE (&c->c2.frame));
       frame_print (&c->c2.tls_multi->opt.frame, D_MTU_INFO,
 		   "Control Channel MTU parms");
+#endif
     }
+#if defined(DONT_PACK_CONTROL_FRAMES)
   if (c->c2.tls_auth_standalone)
     {
       tls_auth_standalone_finalize (c->c2.tls_auth_standalone, &c->c2.frame);
       frame_print (&c->c2.tls_auth_standalone->frame, D_MTU_INFO,
 		   "TLS-Auth MTU parms");
     }
+#endif
 }
 
 #endif /* ENABLE_SSL */
