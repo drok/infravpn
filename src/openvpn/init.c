@@ -1254,7 +1254,7 @@ initialization_sequence_completed (struct context *c, const unsigned int flags)
   do_uid_gid_chroot (c, true);
 
 
-#ifdef ENABLE_CRYPTO
+#ifdef ENABLE_SSL
   /*
    * In some cases (i.e. when receiving auth-token via
    * push-reply) the auth-nocache option configured on the
