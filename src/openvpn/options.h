@@ -36,7 +36,7 @@
 #include "route.h"
 #include "tun.h"
 #include "socket.h"
-#ifdef ENABLE_PLUGIN
+#if defined(ENABLE_PLUGIN)
 #include "plugin.h"
 #endif
 #include "manage.h"
