@@ -33,3 +33,18 @@ TEST_EXTENSIONS += .p2p
 
 # Utility build (standalone key generators, etc)
 TEST_EXTENSIONS += .util
+
+if ENABLE_UNITTESTS_ALL
+
+# Use the package's config-version.h from the top-build directory.
+
+
+if GIT_CHECKOUT
+BUILT_SOURCES += config-version.h
+CLEANFILES += config-version.h
+
+config-version.h: $(top_srcdir)/.git/logs/HEAD
+	CONFIGURE_GIT_REVISION="`GIT_DIR=\"$(top_srcdir)/.git\" $(GIT) rev-parse --symbolic-full-name HEAD`/`GIT_DIR=\"$(top_srcdir)/.git\" $(GIT) rev-parse --short=16 HEAD`"; \
+		$(SED) "s#@CONFIGURE_GIT_REVISION[@]#$${CONFIGURE_GIT_REVISION}#g" "$(top_srcdir)/config-version.h.in" > $@-t && mv $@-t $@
+endif
+endif

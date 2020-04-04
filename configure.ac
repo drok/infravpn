@@ -33,9 +33,23 @@ AM_PROG_CC_C_O
 AC_PATH_PROG([VALGRIND], [valgrind], [echo Failing test because Valgrind is not installed && false])
 AC_PROG_SED
 
+AC_ARG_VAR([GIT], [path to git utility])
+AC_CHECK_PROGS([GIT], [git]) # optional
+
 # Compiler characteristics -----------------------------------------------------
 AX_CPP_VARARG_MACRO_ISO
 AX_CPP_VARARG_MACRO_GCC
+
+# GIT versioning Detection -----------------------------------------------------
+AC_MSG_CHECKING([git checkout])
+GIT_CHECKOUT="no"
+if test -n "${GIT}" -a -d "${srcdir}/.git"; then
+        AC_DEFINE([HAVE_CONFIG_VERSION_H], [1], [extra version available in config-version.h])
+        GIT_CHECKOUT="yes"
+fi
+AC_MSG_RESULT([${GIT_CHECKOUT}])
+
+AM_CONDITIONAL([GIT_CHECKOUT], [test "${GIT_CHECKOUT}" = "yes"])
 
 # Output/generated files -------------------------------------------------------
 AC_CONFIG_FILES([
