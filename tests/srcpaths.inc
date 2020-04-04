@@ -21,6 +21,8 @@
 # When the source tree is reorganized, add a new conditional define there
 # and add a new set of paths here.
 
+testlib_srcdir = $(top_srcdir)/tests/common
+
 if TREE_VERSION_2_0
     openvpn_includedir = $(top_srcdir)/include
     openvpn_srcdir = $(top_srcdir)
