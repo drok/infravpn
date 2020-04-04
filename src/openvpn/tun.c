@@ -49,6 +49,8 @@
 
 #include "memdbg.h"
 
+static void clear_tuntap (struct tuntap *tuntap);
+
 #ifdef WIN32
 
 /* #define SIMULATE_DHCP_FAILED */       /* simulate bad DHCP negotiation */
