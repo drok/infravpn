@@ -157,11 +157,18 @@ AC_CONFIG_FILES(tests/integration/does-it-build/Makefile)
 AC_ARG_ENABLE(
      [unit-tests],
      [AS_HELP_STRING([--disable-unit-tests],
-                     [Disables building and running the unit tests suite.
-                     (Default: sanity tests are enabled, ie the functionality of
-                     enabled configuration options will be tested)])]
+                     [Disables building and running the unit tests suite. By default, only
+                     the package configuration is tested.])
+AS_HELP_STRING([--enable-unit-tests=all],
+                     [Enables the full-test suite (maintainer mode). 
+                      Requires all possible dependencies to be installed,
+                      and tests all implemented code, whether activated by the
+                      package configuration or not.
+                      Mainly useful to the maintainers.])]
 )
+
 AM_CONDITIONAL([ENABLE_UNITTESTS], [test "${enable_unit_tests}" != "no"])
+AM_CONDITIONAL([ENABLE_UNITTESTS_ALL], [test "${enable_unit_tests}" = "all"])
 AC_ARG_VAR([TEST_CPPFLAGS], [Preprocessor flags applied to all C unit tests])
 AC_ARG_VAR([TEST_CFLAGS], [Compiler flags applied to all C unit tests])
 AC_ARG_VAR([TEST_LDFLAGS], [Linker flags applied to all C unit tests])
