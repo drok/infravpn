@@ -36,8 +36,68 @@
 #include "integer.h"
 #include "mtu.h"
 #include "socket.h"
+#include "options.h" /* For OPT_P_PEER_ID */
+#include "ssl.h" /* for P_OPCODE_*_LEN */
 
 #include "memdbg.h"
+
+#if defined (OPT_P_PEER_ID)
+#define RELIABLE_HEADROOM(f,numacks) ( \
+                (f)->config.headroom + \
+                P_OPCODE_CONTROL_LEN + \
+                SID_SIZE + \
+                ACK_SIZE(numacks))
+#else
+#define RELIABLE_HEADROOM(f,numacks) ( \
+                (f)->config.headroom + \
+                P_OPCODE_LEN + \
+                SID_SIZE + \
+                ACK_SIZE(numacks))
+#endif
+
+#define RELIABLE_ENCAPSULATION(f,numacks) \
+                ((f)->link.encapsulation + \
+                RELIABLE_HEADROOM(f,numacks) \
+                )
+
+#define CONTROL_HEADROOM(f,numacks) \
+                ((f)->config.tls_auth_size + \
+                sizeof (packet_id_type) + \
+                RELIABLE_HEADROOM(f,numacks))
+
+#define CONTROL_ENCAPSULATION(f,numacks) \
+                ((f)->config.tls_auth_size + \
+                sizeof (packet_id_type) + \
+                RELIABLE_ENCAPSULATION(f, numacks))
+
+/* a PROBE is CONTROL with 0 acks */
+#define PROBE_ENCAPSULATION(f)  CONTROL_ENCAPSULATION(f,0)
+
+/*
+ * #define DATA_HEADROOM(f) ( \
+                (f)->config.headroom + \
+                ((f)->config.crypto.headroom))
+*/
+#if defined(ENABLE_SSL)
+#if defined (OPT_P_PEER_ID)
+#define DATA_ENCAPSULATION(f) \
+                ((f)->link.encapsulation + \
+                (f)->config.headroom + \
+                ((f)->config.crypto.pulled_opts.use_peer_id ? P_OPCODE_DATA_V2_LEN :  P_OPCODE_DATA_V1_LEN) + \
+                (f)->config.crypto.overhead_sans_pad)
+#else
+#define DATA_ENCAPSULATION(f) \
+                ((f)->link.encapsulation + \
+                (f)->config.headroom + \
+                P_OPCODE_LEN + \
+                (f)->config.crypto.overhead_sans_pad)
+#endif
+#else
+#define DATA_ENCAPSULATION(f) \
+                ((f)->link.encapsulation + \
+                (f)->config.headroom + \
+                (f)->config.crypto.overhead_sans_pad)
+#endif
 
 /* allocate a buffer for socket or tun layer */
 void
@@ -118,8 +178,26 @@ frame_init_crypto (struct frame *frame,
                                          = fragment_headroom;
 #endif
 
+  frame->config.crypto.pulled_opts.use_peer_id = false; /* Default setting */
+
   frame_print (frame, D_MTU_INFO, "Frame Init Crypto:");
 }
+
+#if defined (OPT_P_PEER_ID)
+void
+frame_init_pulled_opts (struct frame *frame,
+                        bool use_peer_id)
+{
+  ASSERT (!IS_INITIALIZED(&frame->config.crypto.pulled_opts) &&
+          "Frame pulled_opts is only initialized once");
+
+#if !defined(NDEBUG)
+  frame->config.crypto.pulled_opts.is_init = true;
+#endif
+
+  frame->config.crypto.pulled_opts.use_peer_id = use_peer_id;
+}
+#endif
 
 void
 frame_init_link (struct frame *frame,
@@ -150,13 +228,37 @@ frame_get_data_payload_room (const struct frame *frame)
 }
 #endif
 
+/* Headroom needed to packetize ciphertext
+ */
+uint16_t inline
+frame_get_data_ciphertext_headroom (const struct frame *frame)
+{
+  ASSERT (IS_INITIALIZED(&frame->config.crypto.pulled_opts));
+
+  uint16_t headroom = 0;
+#if defined (ENABLE_SSL)
+#if defined (OPT_P_PEER_ID)
+  headroom += frame->config.crypto.pulled_opts.use_peer_id ? P_OPCODE_DATA_V2_LEN : P_OPCODE_DATA_V1_LEN;
+#else
+  headroom += P_OPCODE_LEN;
+#endif
+#endif
+  return headroom;
+}
+
 uint16_t inline
 frame_get_data_headroom (const struct frame *frame)
 {
   ASSERT (IS_INITIALIZED(&frame->config));
   ASSERT (IS_INITIALIZED(&frame->config.crypto));
+  ASSERT (IS_INITIALIZED(&frame->config.crypto.pulled_opts));
 
-  return DATA_HEADROOM(frame);
+  uint16_t headroom = frame->config.headroom +
+                    frame->config.crypto.headroom;
+
+  headroom += frame_get_data_ciphertext_headroom (frame);
+
+  return headroom;
 }
 
 uint16_t inline
@@ -164,8 +266,9 @@ frame_get_data_comp_headroom (const struct frame *frame)
 {
   ASSERT (IS_INITIALIZED(&frame->config));
   ASSERT (IS_INITIALIZED(&frame->config.crypto));
+  ASSERT (IS_INITIALIZED(&frame->config.crypto.pulled_opts));
 
-  uint16_t headroom = DATA_HEADROOM(frame);
+  uint16_t headroom = frame_get_data_headroom(frame);
 
 #if defined(ENABLE_LZO)
   headroom += frame->config.crypto.lzo.headroom;
@@ -184,7 +287,7 @@ frame_get_data_frag_headroom (const struct frame *frame)
   ASSERT (IS_INITIALIZED(&frame->config));
   ASSERT (IS_INITIALIZED(&frame->config.crypto));
 
-  uint16_t headroom = DATA_HEADROOM(frame);
+  uint16_t headroom = frame_get_data_headroom(frame);
 
   headroom += frame->config.crypto.lzo.fragment.headroom;
 
@@ -204,7 +307,7 @@ frame_get_data_frag_payload_room (const struct frame *frame)
   if (frame->config.crypto.alignment)
     room -= (room % frame->config.crypto.alignment + 1);
   
-    room -= frame->config.crypto.lzo.fragment.headroom;
+  room -= frame->config.crypto.lzo.fragment.headroom;
   
   return room;
 }
@@ -279,7 +382,7 @@ frame_get_data_overhead (const struct frame *frame, uint16_t datalen)
   ASSERT (IS_INITIALIZED(&frame->config));
   ASSERT (IS_INITIALIZED(&frame->config.crypto));
 
-  return    DATA_HEADROOM(frame) +
+  return    frame_get_data_headroom(frame) +
             frame->config.crypto.overhead_sans_pad - frame->config.crypto.headroom +
             frame_get_data_padding (frame, datalen /* data + packet_id */);
 }
@@ -318,6 +421,7 @@ frame_get_link_pmtu (const struct frame *frame)
   return frame->link.pmtu;
 }
 
+#if defined(ENABLE_SSL)
 uint16_t inline
 frame_get_reliable_encapsulation (const struct frame *frame, int num_acks)
 {
@@ -374,6 +478,7 @@ frame_get_control_payload_room (const struct frame *frame, int num_acks)
   return frame->link.pmtu -
           CONTROL_ENCAPSULATION(frame, num_acks);
 }
+#endif
 
 /* Buffer size needed to send() to the socket descriptor, and fill the
  * PMTU exactly?
@@ -384,7 +489,7 @@ frame_get_link_bufsize (const struct frame *frame)
   ASSERT (IS_INITIALIZED(&frame->config));
   ASSERT (IS_INITIALIZED(&frame->link));
   
-  return frame->link.pmtu - frame->link.encapsulation + frame->config.headroom;
+  return frame->link.pmtu - frame->link.encapsulation;
 }
 
 void
@@ -428,6 +533,9 @@ frame_print (const struct frame *frame,
 #endif
 #if defined(ENABLE_FRAGMENT)
           buf_printf (&out, " F:%d", frame->config.crypto.lzo.fragment.headroom);
+#endif
+#if defined (OPT_P_PEER_ID)
+          buf_printf (&out, " PI:%d", frame->config.crypto.pulled_opts.use_peer_id);
 #endif
         }
       buf_printf (&out, " ]");

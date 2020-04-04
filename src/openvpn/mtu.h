@@ -26,7 +26,7 @@
 #define MTU_H
 
 #include "buffer.h"
-
+#include "options.h" /* for OPT_P_PEER_ID */
 /*
  * 
  * Packet maninipulation routes such as encrypt, decrypt, compress, decompress
@@ -241,14 +241,36 @@ struct frame {
   #endif
       } lzo;
   #endif
+/* Defining the new feature use_peer_id conditional because I want to port the
+ * mtu code to earlier versions of the codebase, where peer_id is not
+ * implemented.
+ */
+#if defined (OPT_P_PEER_ID)
+      /* While crypto parameters are decided at runtime configuration,
+       * other parameters are negotiated at pull time.
+       * In later versions (2.4.x?), crypto is also negotiated at pull time,
+       * So in that case, merge the pulled_opts and the crypto structs, and
+       * initialize them both at pull time.
+       */
+      struct {
+#if !defined(NDEBUG)
+        bool is_init;
+#endif
+        
+        bool use_peer_id;
+
+      } pulled_opts;
+#endif
     } crypto;
   } config;
 
 };
 
 
-#define P_OPCODE_LEN                   1
+#if defined(ENABLE_SSL)
 #define ACK_SIZE(n) (sizeof (uint8_t) + ((n) ? SID_SIZE : 0) + sizeof (packet_id_type) * (n))
+#endif
+
 
 /* The layers are as follows:
  * Maintainers, please document this as structs { }, and rewrite/remove the
@@ -309,44 +331,6 @@ struct frame {
  * headers
  */
 
-/* Number of encapsulation bytes added by layer4, transport layer, plus
- * write_control_auth() which adds on a copy of the buffer.
- */
-#define RELIABLE_HEADROOM(f,numacks) ( \
-                (f)->config.headroom + \
-                P_OPCODE_LEN + \
-                SID_SIZE + \
-                ACK_SIZE(numacks))
-
-#define RELIABLE_ENCAPSULATION(f,numacks) \
-                ((f)->link.encapsulation + \
-                RELIABLE_HEADROOM(f,numacks) - \
-                (f)->config.headroom)
-
-#define CONTROL_HEADROOM(f,numacks) \
-                (sizeof (packet_id_type) + \
-                RELIABLE_HEADROOM(f,numacks) + \
-                (f)->config.tls_auth_size)
-
-#define CONTROL_ENCAPSULATION(f,numacks) \
-                (sizeof (packet_id_type) + \
-                RELIABLE_ENCAPSULATION(f, numacks) + \
-                (f)->config.tls_auth_size)
-
-/* a PROBE is CONTROL with 0 acks */
-#define PROBE_ENCAPSULATION(f)  CONTROL_ENCAPSULATION(f,0)
-
-#define DATA_HEADROOM(f) ( \
-                (f)->config.headroom + \
-                P_OPCODE_LEN + \
-                SID_SIZE + \
-                ((f)->config.crypto.headroom))
-
-#define DATA_ENCAPSULATION(f) \
-                ((f)->link.encapsulation + \
-                P_OPCODE_LEN + \
-                SID_SIZE + \
-                ((f)->config.crypto.overhead_sans_pad))
 
 /* Give no headroom, this will crash something. Fixme. */
 #define FIXME_HEADROOM(f) (0)
@@ -378,6 +362,19 @@ void
 frame_init_link (struct frame *frame,
                  int proto);
 
+#if defined (OPT_P_PEER_ID)
+/* After the connection's features are negotiated (pull mechanism), the frame
+ * parameters change (eg, more headroom for data is needed if switching from a
+ * P_DATA_V1 to P_DATA_V2)
+ * Update frame parameters at negotiation time.
+ */
+void
+frame_init_pulled_opts (struct frame *frame,
+                        bool use_peer_id);
+#endif
+
+#if defined(ENABLE_SSL)
+
 uint16_t inline
 frame_get_control_payload_room (const struct frame *frame, int num_acks);
 
@@ -395,6 +392,7 @@ frame_get_reliable_headroom (const struct frame *frame, int num_acks);
 
 uint16_t inline
 frame_get_control_encapsulation (const struct frame *frame, int num_acks);
+#endif
 
 uint16_t inline
 frame_get_link_bufsize (const struct frame *frame);
@@ -414,6 +412,11 @@ frame_get_link_pmtu (const struct frame *frame);
 uint16_t inline
 frame_get_data_payload_room (const struct frame *frame);
 #endif
+
+/* Headroom needed to packetize ciphertext
+ */
+uint16_t inline
+frame_get_data_ciphertext_headroom (const struct frame *frame);
 
 /* Headroom needed to encrypt the "DATA" layer
  */
