@@ -1,0 +1,149 @@
+dnl  Tests   -- A test infrastructure for backwards-compatible testing
+dnl
+dnl  Copyright (C) 2020 Radu Hociung <radu.tests@ohmi.org>
+dnl
+dnl  This program is free software; you can redistribute it and/or modify
+dnl  it under the terms of the GNU General Public License as published by
+dnl  the Free Software Foundation; either version 2 of the License, or
+dnl  (at your option) any later version.
+dnl
+dnl  This program is distributed in the hope that it will be useful,
+dnl  but WITHOUT ANY WARRANTY; without even the implied warranty of
+dnl  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+dnl  GNU General Public License for more details.
+dnl
+dnl  You should have received a copy of the GNU General Public License
+dnl  along with this program (see the file COPYING included with this
+dnl  distribution); if not, write to the Free Software Foundation, Inc.,
+dnl  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+dnl Process this file with autoconf to produce a configure script.
+
+AC_PREREQ(2.59)
+
+AC_INIT([TESTS], [1.0.0], [tests@ohmi.org], [tests])
+AC_CONFIG_AUX_DIR([.])
+AM_CONFIG_HEADER(config.h)
+AC_CONFIG_SRCDIR(syshead.h)
+AC_CONFIG_MACRO_DIR([m4])
+
+# Build tools ------------------------------------------------------------------
+AC_PROG_GREP
+AM_PROG_CC_C_O
+AC_PATH_PROG([VALGRIND], [valgrind], [echo Failing test because Valgrind is not installed && false])
+AC_PROG_SED
+
+# Compiler characteristics -----------------------------------------------------
+AX_CPP_VARARG_MACRO_ISO
+AX_CPP_VARARG_MACRO_GCC
+
+# Output/generated files -------------------------------------------------------
+AC_CONFIG_FILES([
+    Makefile 
+    tests/Makefile
+])
+
+# ######################## Feature Implementations ############################
+# 1. When work a new feature starts, add both an IMPLEMENTED_{FEATURE}
+#    conditional here, and a UNIT_TESTED_{FEATURE} further below, both set to
+#    [false].
+# 2. Commit the two conditionals to both the source repo and the test repo.
+# 3. Implement the unit test. Toggle UNIT_TESTED_{FEATURE} to [true]
+# 4. Commit the unit test and the UNIT_TESTED_{FEATURE} conditional to the
+#    test repo.
+# 5. Implement the feature. Toggle IMPLEMENTED_{FEATURE} to [true]
+# 6. Commit the implementation and the IMPLEMENTED_{FEATURE} conditional *ONLY*
+#    to the source repo.
+# 7. Test, debug, improve the unit test until coverage is good enough.
+# 8. Commit implementation fixes to the source tree.
+# 9. Commit unit test fixes to the test tree.
+# 10. Merge unit tree into implementation tree.
+# 11. When features are obsolete/removed, toggle only IMPLEMENTED_{FEATURE} to
+#     false, remove the integration, and commit. Do not remove the unit test,
+#     it is still useful to test and maintain the obsolete feature in old
+#     releases. The test will no longer run on new releases, where the FEATURE
+#     is no longer IMPLEMENTED_{}.
+#
+# Adding tests for pre-existing features. The implementations must be detected,
+# cannot be assumed either false nor true. Then, the unit-test will be
+# automatically disabled when merged into source trees pre-dating the feature's
+# introduction.
+# eg, check that the implementation source file exists in the same directory as
+# the AC_CONFIG_SRCDIR() item above:
+# AM_CONDITIONAL([IMPLEMENTED_base64], [test -f $(dirname "$srcdir/$ac_unique_file")/base64.c])
+#
+# IMPORTANT: If you are changing an older branch, such that the "grep-ed"
+# match signature will no longer match, do not update the signature.
+# Instead, replace it with "AM_CONDITIONAL([IMPLEMENTED_xxx_Y_Z], [true])",
+# and commit it to the source tree, in the same commit as your source changes,
+# but *not* the tests repo.
+# This way, if your bug fix gets merged into another branch, the detection
+# will be updated as well, and the test suite will continue working in that
+# destination branch.
+#
+# At the end of this process, the source repo/branch (eg, "master") will contain
+# a tested implementation and the unit tests, and the test repo ("tests") will
+# contain only the unit tests, in a form that can be merged to any branch of the
+# source tree, including old releases, to backtest old code with the newest
+# tests.
+# In the unit test tree, add the following to test a feature in a backwards
+# compatible way (ie, skipping test where the feature is not implemented);
+# in tests/Makefile.am:
+#
+# if UNIT_TESTED_feature
+# SUBDIRS += unit/feature
+# endif
+
+# #################### End Feature Implementations ############################
+
+# ######################## Buildable Packages #################################
+AM_CONDITIONAL([INTEGRATED_openvpn_2_0], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.0\.' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_openvpn_2_1], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.1\.' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_openvpn_2_2], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.2\.' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_openvpn_2_3], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.3\.' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_openvpn_2_4], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.4\.' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_openvpn_2_5], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.5\.' >/dev/null])
+
+AM_CONDITIONAL([INTEGRATED_ovpn], [expr "$PACKAGE_STRING" : 'OVPN ' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_ovpn_1_0], [expr "$PACKAGE_STRING" : 'OVPN 1\.0\.' >/dev/null])
+
+AC_CONFIG_FILES(tests/integration/does-it-build/Makefile)
+# ######################## End Buildable Packages #############################
+
+# ####################### Feature Unit Tests ##################################
+# Once a test is implemented for a feature, toggle UNIT_TESTED_{feature} to true
+# Never remove or turn UNIT_TESTED_{feature} to false after it's turned true.
+# Removing it would break old builds ("Makefile.am:xxx: UNIT_TESTED_{feature}
+# does not appear in AM_CONDITIONAL") when the test branch is merged there,
+# as would turning it false (unresolved symbols at link time).
+# In the source tree, add the following to include a feature:
+# In src/openvpn/Makefile.am
+#
+#   if UNIT_TESTED_feature
+#    openvpn_SOURCES += feature.c feature.h
+#   endif
+
+# ################### End Feature Unit Tests ##################################
+
+AC_ARG_ENABLE(
+     [unit-tests],
+     [AS_HELP_STRING([--disable-unit-tests],
+                     [Disables building and running the unit tests suite.
+                     (Default: sanity tests are enabled, ie the functionality of
+                     enabled configuration options will be tested)])]
+)
+AM_CONDITIONAL([ENABLE_UNITTESTS], [test "${enable_unit_tests}" != "no"])
+AC_ARG_VAR([TEST_CPPFLAGS], [Preprocessor flags applied to all C unit tests])
+AC_ARG_VAR([TEST_CFLAGS], [Compiler flags applied to all C unit tests])
+AC_ARG_VAR([TEST_LDFLAGS], [Linker flags applied to all C unit tests])
+
+AS_IF([test "${enable_unit_tests}" != "no"], [
+    # Check if cmocka is available - needed for unit testing
+    PKG_CHECK_MODULES(
+            [CMOCKA], [cmocka],,
+            [AC_MSG_ERROR([cmocka (required for unit testing) not found. Install it or --disable-unit-tests])]
+    )
+])
+
+
+AC_OUTPUT
