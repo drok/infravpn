@@ -172,6 +172,8 @@ mutate_ENABLE_LZO =         -DENABLE_LZO
 # TODO: Add test for ENABLE_PUSH_PEER_INFO mutator added at 4f79d3ec (2.1.1 and 2.2)
 # Hardcoded in syshead.h
 # mutators +=           ENABLE_PUSH_PEER_INFO
+
+base_LDADD         =
 else
 
 mutators +=                 USE_LIBDL
@@ -254,6 +256,7 @@ else
 # 2.0-only sources
 common_sources += \
     $(openvpn_srcdir)/thread.c              $(openvpn_srcdir)/thread.h
+base_LDADD         =                        @WIN32_LIBS@
 endif
 
 
@@ -288,7 +291,6 @@ all_tests = multi.combo \
 # Most warnings are caused by #ifdef bugs, ie, dangling, unused code that
 # belongs inside an #ifdef but it is outside.
 base_CFLAGS        =                        -Wall
-base_LDADD         =                        @WIN32_LIBS@
 base_CPPFLAGS      =                        -I$(openvpn_srcdir) \
                                             -I$(compat_srcdir)
 
