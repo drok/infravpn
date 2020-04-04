@@ -13,6 +13,8 @@
 #include "mtu.h"
 #include "options.h" /* For OPT_P_PEER_ID */
 
+#include "ssl.h" /* for P_OPCODE_*_LEN */
+
 #if defined(PA_BRACKET)
 /* In 2.1, at bda8d3, buf_printf was changed from returning void to bool
  * Use PA_BRACKET which was defined in buffer.h before this change to detect
@@ -78,39 +80,137 @@ proto_name_str(int proto)
   return "OTHER";
 }
 
-static void test_source_macros(void **state)
+/* Pre backwards compatibility adjustments.
+ * These tests target source code quality rather than functionality.
+ * They are only enabled for maintainers, because there is nothing a packager
+ * needs to do about the quality of the source.
+ */
+#if defined(IMPLEMENTATION_mtu2)
+/* Static analysis.
+ * 
+ * This test only validates that the expected pre-processor macros exist when
+ * they should, and more importantly, that they are not defined when they are
+ * not needed (this would be a trap waiting for a future developer).
+ * If a definition exists unexpectedly, it creates the hazard of being used
+ * somewhere where it should not be used. Eg, if SID_SIZE is used when
+ * ENABLE_SSL is not defined, somewhere, something has a bug, because SID is
+ * meaningless in non-SSL builds.
+ */
+static void test_static_analysis(void **state)
 {
 /* If macros are defined needlessly, it may tempt their use, which would be
  * invalid.
  */
-#if defined(ENABLE_SSL) != defined(SID_SIZE)
+#if defined(ENABLE_SSL)
+#if !defined(SID_SIZE)
+  assert_false ("SID_SIZE should be defined when ENABLE_SSL is defined");
+#else
+  assert_true ("SID_SIZE is defined");
+#endif
+#if !defined(ACK_SIZE)
+  assert_false ("ACK_SIZE should be defined when ENABLE_SSL is defined");
+#else
+  assert_true ("ACK_SIZE is defined");
+#endif
+#if !defined(OPT_P_PEER_ID)
+#if defined(P_OPCODE_CONTROL_LEN)
+  assert_false ("P_OPCODE_CONTROL_LEN should only be defined when OPT_PEER_ID is defined");
+#else
+  assert_true ("P_OPCODE_CONTROL_LEN is not defined");
+#endif
+#if defined(P_OPCODE_DATA_V1_LEN)
+  assert_false ("P_OPCODE_DATA_V1_LEN should only be defined when OPT_PEER_ID is defined");
+#else
+  assert_true ("P_OPCODE_DATA_V1_LEN is not defined");
+#endif
+#if defined(P_OPCODE_DATA_V2_LEN)
+  assert_false ("P_OPCODE_DATA_V2_LEN should only be defined when OPT_PEER_ID is defined");
+#else
+  assert_true ("P_OPCODE_DATA_V2_LEN is not defined");
+#endif
+#if !defined(P_OPCODE_LEN)
+  assert_false ("P_OPCODE_LEN should be defined when OPT_PEER_ID is not defined");
+#else
+  assert_true ("P_OPCODE_LEN is defined");
+#endif
+#else /* OPT_P_PEER_ID */
+#if !defined(P_OPCODE_DATA_V1_LEN)
+  assert_false ("P_OPCODE_DATA_V1_LEN should be defined when OPT_PEER_ID is defined");
+#else
+  assert_true ("P_OPCODE_DATA_V1_LEN is defined");
+#endif
+#if !defined(P_OPCODE_DATA_V2_LEN)
+  assert_false ("P_OPCODE_DATA_V2_LEN should be defined when OPT_PEER_ID is defined");
+#else
+  assert_true ("P_OPCODE_DATA_V2_LEN is defined");
+#endif
+#if defined(P_OPCODE_LEN)
+  assert_false ("P_OPCODE_LEN should not be defined when OPT_PEER_ID is defined");
+#else
+  assert_true ("P_OPCODE_LEN is not defined");
+#endif
+#endif
+
+#else /* ENABLE_SSL */
+#if defined(SID_SIZE)
   assert_false ("SID_SIZE should only be defined when ENABLE_SSL is defined");
+#else
+  assert_true ("SID_SIZE is not defined");
 #endif
-#if defined(ENABLE_SSL) != defined(ACK_SIZE)
+#if defined(ACK_SIZE)
   assert_false ("ACK_SIZE should only be defined when ENABLE_SSL is defined");
+#else
+  assert_true ("ACK_SIZE is not defined");
+#endif
+#if defined(OPT_P_PEER_ID)
+  assert_false ("OPT_P_PEER_ID should only be defined when ENABLE_SSL is defined");
+#else
+  assert_true ("OPT_P_PEER_ID is not defined");
+#endif
 #endif
 
-#if (defined(ENABLE_SSL) && defined(OPT_P_PEER_ID)) != defined(P_OPCODE_V1_LEN)
-  assert_false ("P_OPCODE_V1_LEN should only be defined when ENABLE_SSL and OPT_PEER_ID are defined");
+}
+#endif
+#if defined(IMPLEMENTATION_2_4)
+/* At 2.4, a new function was added:
+ * frame_init_mssfix(struct frame *frame, const struct options *options)
+ */
 #endif
 
-#if (defined(ENABLE_SSL) && defined(OPT_P_PEER_ID)) != defined(P_OPCODE_V2_LEN)
-  assert_false ("P_OPCODE_V2_LEN should only be defined when ENABLE_SSL and OPT_PEER_ID are defined");
+#if defined(IMPLEMENTATION_2_0) || defined(IMPLEMENTATION_2_4)
+static void test_static_analysis(void **state)
+{
+#if !defined(BUF_SIZE)
+  assert_false ("BUF_SIZE should be defined");
+#else
+  assert_true ("BUF_SIZE is defined");
 #endif
-
-#if (defined(ENABLE_SSL) && !defined(OPT_P_PEER_ID)) != defined(P_OPCODE_LEN)
-  assert_false ("P_OPCODE_LEN should only be defined when ENABLE_SSL is defined and OPT_PEER_ID is not defined");
+#if !defined(MAX_RW_SIZE_TUN)
+  assert_false ("MAX_RW_SIZE_TUN should be defined");
+#else
+  assert_true ("MAX_RW_SIZE_TUN is defined");
+#endif
+#if !defined(EXPANDED_SIZE)
+  assert_false ("EXPANDED_SIZE should be defined");
+#else
+  assert_true ("EXPANDED_SIZE is defined");
 #endif
 }
+#endif
 
 /* Backwards compatibility tweaks (#if .. #elif ladder in descending order)
  * Allow some new tests to run against obsoleted interfaces.
  * Ie, how to run 2.new tests on 2.old libraries?
  */
 #if defined(IMPLEMENTATION_mtu2)
-    #if defined(ENABLE_SSL) && defined(OPT_P_PEER_ID)
+    #if defined(ENABLE_SSL)
+    #if defined(OPT_P_PEER_ID)
     /* a new P_DATA_V2 4-byte opcode was added at 0e1fd33*/
-    #define P_OPCODE_LEN (s->inputs.use_peer_id ? P_OPCODE_V2_LEN : P_OPCODE_V1_LEN)
+    #define P_OPCODE_DATA_LEN (s->inputs.use_peer_id ? P_OPCODE_DATA_V2_LEN : P_OPCODE_DATA_V1_LEN)
+    #else
+    #define P_OPCODE_DATA_LEN P_OPCODE_LEN
+    #define P_OPCODE_CONTROL_LEN P_OPCODE_LEN
+    #endif
     #endif
 #elif defined(IMPLEMENTATION_2_4)
 /* At 2.4, a new function was added:
@@ -399,10 +499,7 @@ static void test_init(void **state)
   assert_int_equal (frame_get_data_headroom (&s->frame),
                     s->inputs.link_headroom +
 #if defined(ENABLE_SSL)
-#if defined(OPT_P_PEER_ID)
-                    (s->inputs.use_peer_id ? P_OPCODE_V2_LEN : P_OPCODE_V1_LEN) +
-#endif
-#else
+                    P_OPCODE_DATA_LEN +
 #endif
                     s->inputs.headroom
                     );
@@ -438,7 +535,7 @@ static void test_link_ssl_encapsulations(void **state)
   assert_int_equal (frame_get_reliable_encapsulation (&s->frame, s->inputs.num_acks),
                     my_proto_overhead[s->inputs.PROTO] +
                     s->inputs.link_headroom +
-                    P_OPCODE_LEN +
+                    P_OPCODE_CONTROL_LEN +
                     SID_SIZE +
                     ACK_SIZE(s->inputs.num_acks)
               );
@@ -446,7 +543,7 @@ static void test_link_ssl_encapsulations(void **state)
   assert_true (frame_get_control_encapsulation (&s->frame, s->inputs.num_acks) ==
                     my_proto_overhead[s->inputs.PROTO] +
                     s->inputs.link_headroom +
-                    P_OPCODE_LEN +
+                    P_OPCODE_CONTROL_LEN +
                     SID_SIZE +
                     ACK_SIZE(s->inputs.num_acks) +
                     s->inputs.TLS_AUTH_SIZE +
@@ -466,7 +563,7 @@ static void test_link_crypto_encapsulations(void **state)
                     my_proto_overhead[s->inputs.PROTO] +
                     s->inputs.link_headroom +
 #if defined(ENABLE_SSL)
-                    P_OPCODE_LEN +
+                    P_OPCODE_DATA_LEN +
 #endif
                     LZO_HEADROOM +
                     FRAGMENT_HEADROOM +
@@ -497,7 +594,7 @@ static void test_bufsize_calculations(void **state)
                     s->inputs.PMTU -
                     my_proto_overhead[s->inputs.PROTO] -
                     s->inputs.link_headroom -
-                    P_OPCODE_LEN -
+                    P_OPCODE_CONTROL_LEN -
                     SID_SIZE -
                     ACK_SIZE(s->inputs.num_acks) -
                     s->inputs.TLS_AUTH_SIZE -
@@ -509,11 +606,10 @@ static void test_bufsize_calculations(void **state)
                     s->inputs.PMTU -
                     my_proto_overhead[s->inputs.PROTO] -
                     s->inputs.link_headroom -
-                    s->inputs.overhead;
-
 #if defined(ENABLE_SSL)
-  payload_pre_padding -= P_OPCODE_LEN;
-#endif
+                    P_OPCODE_DATA_LEN -
+#endif  
+                    s->inputs.overhead;
 
   msg (D_TEST_DEBUG, "payload_pre_padding %d bytes", payload_pre_padding);
   assert_true (payload_pre_padding > 0);
@@ -548,10 +644,10 @@ static void test_headroom_calculations(void **state)
 {
   struct mystate *s = *state;
 
-#if defined(ENABLE_SSL) && defined(ENABLE_CRYPTO)
+#if defined(ENABLE_SSL)
   assert_int_equal (frame_get_control_headroom (&s->frame, s->inputs.num_acks),
                     s->inputs.link_headroom +
-                    P_OPCODE_LEN +
+                    P_OPCODE_CONTROL_LEN +
                     SID_SIZE +
                     ACK_SIZE(s->inputs.num_acks) +
                     s->inputs.TLS_AUTH_SIZE +
@@ -560,7 +656,7 @@ static void test_headroom_calculations(void **state)
 
   assert_int_equal (frame_get_reliable_headroom (&s->frame, s->inputs.num_acks),
                     s->inputs.link_headroom +
-                    P_OPCODE_LEN +
+                    P_OPCODE_CONTROL_LEN +
                     SID_SIZE +
                     ACK_SIZE(s->inputs.num_acks)
               );
@@ -572,7 +668,7 @@ static void test_headroom_calculations(void **state)
   assert_int_equal (frame_get_data_headroom (&s->frame),
                     s->inputs.link_headroom +
 #if defined(ENABLE_SSL)
-                    P_OPCODE_LEN +
+                    P_OPCODE_DATA_LEN +
 #endif
                     s->inputs.headroom
                     );
@@ -583,7 +679,7 @@ static void test_headroom_calculations(void **state)
   assert_int_equal (frame_get_data_comp_headroom (&s->frame),
                     s->inputs.link_headroom +
 #if defined(ENABLE_SSL)
-                    P_OPCODE_LEN +
+                    P_OPCODE_DATA_LEN +
 #endif
                     LZO_HEADROOM +
                     FRAGMENT_HEADROOM +
@@ -598,7 +694,7 @@ static void test_headroom_calculations(void **state)
   assert_int_equal (frame_get_data_frag_headroom (&s->frame),
                     s->inputs.link_headroom +
 #if defined(ENABLE_SSL)
-                    P_OPCODE_LEN +
+                    P_OPCODE_DATA_LEN +
 #endif
                     s->inputs.fragment_headroom +
                     s->inputs.headroom
@@ -631,7 +727,7 @@ static void test_overhead_calculations(void **state)
                         frame_get_data_padding(&s->frame, fragmented) +
                         s->inputs.link_headroom,
 #if defined(ENABLE_SSL)
-                        P_OPCODE_LEN +
+                        P_OPCODE_DATA_LEN +
 #endif
                         frame_get_data_overhead (&s->frame, fragmented)
          );
@@ -640,7 +736,7 @@ static void test_overhead_calculations(void **state)
                         s->inputs.overhead +
                         frame_get_data_padding(&s->frame, fragmented) +
 #if defined(ENABLE_SSL)
-                        P_OPCODE_LEN +
+                        P_OPCODE_DATA_LEN +
 #endif
                         s->inputs.link_headroom);
 
@@ -649,7 +745,7 @@ static void test_overhead_calculations(void **state)
                         s->inputs.overhead +
                         frame_get_data_padding(&s->frame, fragmented) +
 #if defined(ENABLE_SSL)
-                        P_OPCODE_LEN +
+                        P_OPCODE_DATA_LEN +
 #endif
                         s->inputs.link_headroom,
                         frame_get_data_comp_overhead (&s->frame, len)
@@ -660,7 +756,7 @@ static void test_overhead_calculations(void **state)
                         s->inputs.overhead +
                         frame_get_data_padding(&s->frame, fragmented) +
 #if defined(ENABLE_SSL)
-                        P_OPCODE_LEN +
+                        P_OPCODE_DATA_LEN +
 #endif
                         s->inputs.link_headroom);
     }
@@ -720,8 +816,11 @@ do_getopt (int argc, char **argv)
 }
 
 int main(int argc, char **argv) {
-    const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_source_macros),
+    const struct CMUnitTest static_tests[] = {
+        cmocka_unit_test(test_static_analysis),
+    };
+
+    const struct CMUnitTest functional_tests[] = {
 #if defined(IMPLEMENTATION_mtu2)
         cmocka_unit_test(test_init),
         cmocka_unit_test(test_link_ssl_encapsulations),
@@ -736,17 +835,21 @@ int main(int argc, char **argv) {
 
     do_getopt (argc, argv);
 
-    if (sizeof(tests) != 0)
-      {
-        srand(0);
-        result = cmocka_run_group_tests_name("test_typical_inputs", tests, setup_typical, teardown);
-        for (i = 0; i < 10000 && result == 0; i++)
+    result = cmocka_run_group_tests_name("static_tests", static_tests, NULL, NULL);
+    dmsg(D_TEST_INFO, "static tests returned %d", result);
+    if (!result) {
+        if (sizeof(functional_tests) != 0)
           {
-            result = cmocka_run_group_tests_name("test_fuzz_inputs", tests, setup_fuzz, teardown);
+            srand(0);
+            result = cmocka_run_group_tests_name("test_typical_inputs", functional_tests, setup_typical, teardown);
+            for (i = 0; i < 10000 && result == 0; i++)
+              {
+                result = cmocka_run_group_tests_name("test_fuzz_inputs", functional_tests, setup_fuzz, teardown);
+              }
           }
-      }
-    else
-      return AUTOMAKE_TEST_SKIPPED;
+        else
+          return AUTOMAKE_TEST_SKIPPED;
+    }
 
     if (result == 255) /* Cmocka error, failed to test */
       return AUTOMAKE_TEST_HARD_ERROR;
