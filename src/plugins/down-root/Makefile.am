@@ -9,6 +9,8 @@ MAINTAINERCLEANFILES = \
 
 AM_CFLAGS = \
 	-I$(top_srcdir)/include \
+	$(PACKAGE_CFLAGS) \
+	$(PLUGIN_CFLAGS) \
 	$(OPTIONAL_CRYPTO_CFLAGS)
 
 if ENABLE_PLUGIN_DOWN_ROOT
@@ -22,3 +24,6 @@ openvpn_plugin_down_root_la_SOURCES = \
 openvpn_plugin_down_root_la_LDFLAGS = $(AM_LDFLAGS) \
 	-export-symbols "$(srcdir)/down-root.exports" \
 	-module -shared -avoid-version -no-undefined
+openvpn_plugin_down_root_la_LIBADD = \
+	$(PACKAGE_LIBS) \
+	$(PLUGIN_LIBS)

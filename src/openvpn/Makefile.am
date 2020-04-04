@@ -8,6 +8,7 @@
 #  Copyright (C) 2002-2017 OpenVPN Technologies, Inc. <sales@openvpn.net>
 #  Copyright (C) 2006-2012 Alon Bar-Lev <alon.barlev@gmail.com>
 #
+AUTOMAKE_OPTIONS = color-tests parallel-tests
 
 include $(top_srcdir)/build/ltrc.inc
 
@@ -23,6 +24,8 @@ INCLUDES = \
 	-I$(top_srcdir)/src/compat
 
 AM_CFLAGS = \
+	$(PACKAGE_CFLAGS) \
+	$(APP_FLAGS) \
 	$(TAP_CFLAGS) \
 	$(OPTIONAL_CRYPTO_CFLAGS) \
 	$(OPTIONAL_LZO_CFLAGS) \
@@ -114,6 +117,8 @@ openvpn_SOURCES = \
 	cryptoapi.h cryptoapi.c
 openvpn_LDADD = \
 	$(top_builddir)/src/compat/libcompat.la \
+	$(PACKAGE_LIBS) \
+	$(APP_LIBS) \
 	$(SOCKETS_LIBS) \
 	$(OPTIONAL_LZO_LIBS) \
 	$(OPTIONAL_PKCS11_HELPER_LIBS) \
@@ -125,3 +130,6 @@ if WIN32
 openvpn_SOURCES += openvpn_win32_resources.rc
 openvpn_LDADD += -lgdi32 -lws2_32 -lwininet -lcrypt32 -liphlpapi -lrpcrt4 -lwinmm
 endif
+
+# System/package tests ---------------------------------------------------------
+include $(top_srcdir)/tests/integration/package-tests.inc

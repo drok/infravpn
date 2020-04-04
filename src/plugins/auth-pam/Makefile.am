@@ -9,6 +9,8 @@ MAINTAINERCLEANFILES = \
 
 AM_CFLAGS = \
 	-I$(top_srcdir)/include \
+	$(PACKAGE_CFLAGS) \
+	$(PLUGIN_CFLAGS) \
 	$(PLUGIN_AUTH_PAM_CFLAGS) \
 	$(OPTIONAL_CRYPTO_CFLAGS)
 
@@ -23,6 +25,8 @@ openvpn_plugin_auth_pam_la_SOURCES = \
 	pamdl.c  pamdl.h \
 	auth-pam.exports
 openvpn_plugin_auth_pam_la_LIBADD = \
+	$(PACKAGE_LIBS) \
+	$(PLUGIN_LIBS) \
 	$(PLUGIN_AUTH_PAM_LIBS)
 openvpn_plugin_auth_pam_la_LDFLAGS = $(AM_LDFLAGS) \
 	-export-symbols "$(srcdir)/auth-pam.exports" \
