@@ -70,7 +70,7 @@ endif
 
 ## Naming Tests
 
-The test extension is used to distinguish what testdriver program will be used to run the test. New extensions may be added in the future. The authoritative list is in [srcpaths.inc](srcpaths.inc). Here is a (possibly outdated) list
+The test extension is used to distinguish what testdriver program will be used to run the test. New extensions may be added in the future. The authoritative list is in [../srcpaths.inc](srcpaths.inc). Here is a (possibly outdated) list
 
 Extension | Use Scenario
 ----------|-------------
@@ -99,18 +99,18 @@ memleaks | Test instrumented specifically for detecting memory leaks, buffer ove
 Suppose a feature implements authentication, named "letmein". It allocates memory, so there is a potential for leaks, and has some configuration requirements (conflicts with some other config options). It is implemented in the file `letmein.c` in the source tree. How to set it up:
 
 * Unit test directory name = `letmein`
-* Behaviour tests = `letmein/test.c`
-* Basename for the test = `auth`
+* Functional tests = `letmein/test.c`
+* Basename for the test = `auth.letmein`
 * Extension(s) = `.test`, `.memcheck`, `.conf`
-* The prog_SOURCE lists for the `test` and `memcheck` targets should be `test.c $(openvpn_srcdir)/letmein.c`
+* The auth_letmein_SOURCE and memleaks_letmein_SOURCE lists for the `test` and `memcheck` targets should be `test.c $(openvpn_srcdir)/letmein.c`
 * Several configurations may be useful to test. Add them to the `TESTS` variable in Makefile.am (no SOURCE needed, and do not require building)
   * `auth.basic.conf`
   * `auth.challenge-response.conf`
   * `auth.challenge-or-password.conf`
   * `auth.conflict-with-otherauth.conf` (also add to `XFAIL_TESTS = auth.conflict-with-otherauth.conf` if this should be detected as an invalid configuration, ie "eXpected to FAIL")
 * The following targets should be built, all using the same SOURCES, LIBRARIES and possibly FLAGS: 
-  * `auth.test`
-  * `auth.memcheck`
+  * `auth.letmein.test`
+  * `memleaks.letmein.memcheck`
 
 What this enables:
 * To test all authentication implementations: `make check TESTS=auth`
