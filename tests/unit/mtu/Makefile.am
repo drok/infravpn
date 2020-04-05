@@ -66,7 +66,6 @@ endif
 # ENABLE_FRAGMENT - interfaces and arithmetic are diff with FRAGMENT support.
 
 all_tests = ndebug.test \
-                debug.test \
         algo.mtu-lzo.test \
         algo.mtu-lzo-crypto.test \
         algo.mtu-lzo-ssl-crypto.test \
@@ -74,7 +73,8 @@ all_tests = ndebug.test \
         algo.mtu-lzo-fragment.test \
         algo.mtu-lzo-fragment-mss.test \
         algo.mtu-lzo-fragment-mss-ssl-crypto.test \
-        ndebug.mtu-lzo-fragment.test
+        debug.mtu-lzo-fragment-mss-ssl-crypto.test \
+        ndebug.mtu-lzo-fragment-mss-ssl-crypto.test
 
 # Tests run by package maintainers, only validate the active configuration
 # This test selection validates functionality, basic memory leak, and basic
@@ -95,7 +95,7 @@ sanity_mtu_test_CFLAGS    = $(base_test_CFLAGS)
 sanity_mtu_test_LDADD     = $(base_test_LDADD)
 sanity_mtu_test_SOURCES   = $(base_test_SOURCES)
 sanity_mtu_test_CPPFLAGS  = -I$(top_builddir) $(base_test_CPPFLAGS) \
-			    -I$(openvpn_includedir)
+                -I$(openvpn_includedir)
 
 # -- Anything below this line can be reused as-is in most other tests ----------
 
@@ -104,17 +104,25 @@ check_PROGRAMS = $(sanity_tests)
 else
 check_PROGRAMS = $(sanity_tests) $(all_tests)
 
+if !INTEGRATED_ovpn_1_0
+# Tess without SSL fail the static analysis on OpenVPN because OPT_P_PEER_ID is
+# defined while ENABLE_SSL is not (--pull makes no sense without ENABLE_SSL)
+# Accept FAIL on OpenVPN for the tests without ENABLE_SSL
+# Nonetheless, the tests may be run manually with the --no-static-analysis
+# commandline arg to skip static analysis.
+XFAIL_TESTS +=  ndebug.test \
+        algo.mtu-lzo.test \
+        algo.mtu-lzo-crypto.test \
+        algo.mtu-fragment.test \
+        algo.mtu-lzo-fragment.test \
+        algo.mtu-lzo-fragment-mss.test
+endif
+
 ndebug_test_CFLAGS    = $(base_test_CFLAGS)
 ndebug_test_LDADD     = $(base_test_LDADD)
 ndebug_test_SOURCES   = $(base_test_SOURCES)
 ndebug_test_CPPFLAGS  = -DNDEBUG \
              -I. $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
-
-debug_test_CFLAGS   = $(base_test_CFLAGS)
-debug_test_LDADD    = $(base_test_LDADD)
-debug_test_SOURCES      = $(base_test_SOURCES)
-debug_test_CPPFLAGS     = -DENABLE_DEBUG \
-              -I. $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
 
 algo_mtu_lzo_test_CFLAGS   = $(base_test_CFLAGS)
 algo_mtu_lzo_test_LDADD    = $(base_test_LDADD)
@@ -160,10 +168,21 @@ algo_mtu_lzo_fragment_mss_ssl_crypto_test_CPPFLAGS = -DENABLE_LZO -DENABLE_FRAGM
                                                      -DENABLE_SSL -DENABLE_CRYPTO -DENABLE_CRYPTO_OPENSSL \
               -I. $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
 
-ndebug_mtu_lzo_fragment_test_CFLAGS   = $(base_test_CFLAGS)
-ndebug_mtu_lzo_fragment_test_LDADD    = $(base_test_LDADD)
-ndebug_mtu_lzo_fragment_test_SOURCES  = $(base_test_SOURCES)
-ndebug_mtu_lzo_fragment_test_CPPFLAGS = -DNDEBUG -DENABLE_LZO -DENABLE_FRAGMENT \
+ndebug_mtu_lzo_fragment_mss_ssl_crypto_test_CFLAGS   = $(base_test_CFLAGS)
+ndebug_mtu_lzo_fragment_mss_ssl_crypto_test_LDADD    = $(base_test_LDADD)
+ndebug_mtu_lzo_fragment_mss_ssl_crypto_test_SOURCES  = $(base_test_SOURCES)
+ndebug_mtu_lzo_fragment_mss_ssl_crypto_test_CPPFLAGS = -DNDEBUG -DENABLE_LZO -DENABLE_FRAGMENT \
+                                                     -DLINK_MSS=1472 \
+                                                     -DENABLE_SSL -DENABLE_CRYPTO -DENABLE_CRYPTO_OPENSSL \
+              -I. $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
+
+debug_mtu_lzo_fragment_mss_ssl_crypto_test_CFLAGS   = $(base_test_CFLAGS)
+debug_mtu_lzo_fragment_mss_ssl_crypto_test_LDADD    = $(base_test_LDADD)
+debug_mtu_lzo_fragment_mss_ssl_crypto_test_SOURCES  = $(base_test_SOURCES)
+debug_mtu_lzo_fragment_mss_ssl_crypto_test_CPPFLAGS = -DENABLE_DEBUG \
+                                                     -DENABLE_LZO -DENABLE_FRAGMENT \
+                                                     -DLINK_MSS=1472 \
+                                                     -DENABLE_SSL -DENABLE_CRYPTO -DENABLE_CRYPTO_OPENSSL \
               -I. $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
 
 endif
