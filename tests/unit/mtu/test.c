@@ -664,6 +664,15 @@ static void test_headroom_calculations(void **state)
               );
 #endif
 
+  /* Headroom needed to wrap the ciphertext, ie, the DATA opcode, if any
+   */
+  assert_int_equal (frame_get_data_ciphertext_headroom (&s->frame), 
+#if defined(ENABLE_SSL)
+                    P_OPCODE_DATA_LEN +
+#endif
+                    0
+  );
+
   /* Headroom needed for data compressed and fragmented buffers, in order to
    * encrypt them.
    */
