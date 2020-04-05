@@ -171,6 +171,7 @@ struct buffer string_alloc_buf_debug (const char *str, struct gc_arena *gc, cons
 
 struct buffer alloc_buf (size_t size);
 void realloc_buf (struct buffer *buf, size_t size);
+void buf_fill_incompressible (struct buffer *buf, uint16_t len);
 struct buffer alloc_buf_gc (size_t size, struct gc_arena *gc); /* allocate buffer with garbage collection */
 struct buffer clone_buf (const struct buffer* buf);
 void *gc_malloc (size_t size, bool clear, struct gc_arena *a);
