@@ -80,6 +80,7 @@ proto_name_str(int proto)
   return "OTHER";
 }
 
+#if defined(UNIT_TESTS_ALL)
 /* Pre backwards compatibility adjustments.
  * These tests target source code quality rather than functionality.
  * They are only enabled for maintainers, because there is nothing a packager
@@ -197,6 +198,7 @@ static void test_static_analysis(void **state)
 #endif
 }
 #endif
+#endif /* UNIT_TESTS_ALL */
 
 /* Backwards compatibility tweaks (#if .. #elif ladder in descending order)
  * Allow some new tests to run against obsoleted interfaces.
@@ -780,14 +782,23 @@ unsigned int verb = 0;
  */
 unsigned int bp = 0;
 
+struct test_options {
+#if defined(UNIT_TESTS_ALL)
+  int no_static_analysis;
+#endif
+};
+
 static void
-do_getopt (int argc, char **argv)
+do_getopt (int argc, char **argv, struct test_options *opt)
 {
   int c;
   while (1)
     {
       int option_index = 0;
       static struct option long_options[] = {
+#if defined(UNIT_TESTS_ALL)
+        {"no-static-analysis", no_argument, 0, 1},
+#endif
         {"verb", optional_argument, 0, 'v'},
         {0, 0, 0, 0}
       };
@@ -800,6 +811,10 @@ do_getopt (int argc, char **argv)
       switch (c)
         {
 
+#if defined(UNIT_TESTS_ALL)
+        case 1: opt->no_static_analysis = true;
+          break;
+#endif
         case 'v': if (optarg)
             verb = atoi (optarg);
           else
@@ -810,15 +825,17 @@ do_getopt (int argc, char **argv)
           break;
 
         default:
-          printf ("?? getopt returned character code 0%o ??\n", c);
+            msg (D_TEST_INFO, "?? Unhandled getopt character code 0%o ??\n", c);
         }
     }
 }
 
 int main(int argc, char **argv) {
+#if defined(UNIT_TESTS_ALL)
     const struct CMUnitTest static_tests[] = {
         cmocka_unit_test(test_static_analysis),
     };
+#endif
 
     const struct CMUnitTest functional_tests[] = {
 #if defined(IMPLEMENTATION_mtu2)
@@ -832,11 +849,14 @@ int main(int argc, char **argv) {
     };
 
     int result = 0, i;
+    struct test_options opt = {};
+    do_getopt (argc, argv, &opt);
 
-    do_getopt (argc, argv);
+#if defined(UNIT_TESTS_ALL)
+    if (!opt.no_static_analysis)
+        result = cmocka_run_group_tests_name("static_tests", static_tests, NULL, NULL);
+#endif
 
-    result = cmocka_run_group_tests_name("static_tests", static_tests, NULL, NULL);
-    dmsg(D_TEST_INFO, "static tests returned %d", result);
     if (!result) {
         if (sizeof(functional_tests) != 0)
           {
