@@ -42,6 +42,18 @@
 #define UP_TYPE_AUTH        "Auth"
 #define UP_TYPE_PRIVATE_KEY "Private Key"
 
+#if defined(ENABLE_SSL)
+#if defined (OPT_P_PEER_ID)
+#define P_OPCODE_CONTROL_LEN              1
+#define P_OPCODE_DATA_V1_LEN              1
+#define P_OPCODE_DATA_V2_LEN              4
+#else
+/* Before OPT_P_PEER_ID, all opcodes were 1-byte */
+#define P_OPCODE_LEN                      1
+#endif
+#endif
+
+
 /** @addtogroup control_processor
  *  @{ */
 /**
