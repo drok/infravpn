@@ -33,7 +33,6 @@
 #include "common.h"
 #include "buffer.h"
 #include "error.h"
-#include "mtu.h"
 #include "misc.h"
 
 #include "memdbg.h"
