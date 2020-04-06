@@ -284,6 +284,11 @@ void
 x_gc_free (struct gc_arena *a)
 {
 }
+/* placeholder for fn introduced at e719a05 */
+void x_gc_freespecial(struct gc_arena *a)
+{
+  assert_false (!!"Unexpected call to x_gc_freespecial()");
+}
 
 void *
 #ifdef DMALLOC
