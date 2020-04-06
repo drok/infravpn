@@ -123,10 +123,12 @@ else
 check_PROGRAMS = $(sanity_tests) $(all_tests)
 
 if IMPLEMENTED_buffer_2_3
+if !IMPLEMENTED_buffer_2_4
 # TODO: currently these fail due to the "aggregate" bug, fixed later at 463afdf
 XFAIL_TESTS += sanity.buffer.test \
 		memleaks.memcheck \
 		ndebug.test
+endif
 endif
 
 # The ndebug build is very similar to the plain build in many versions of the

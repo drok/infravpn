@@ -110,16 +110,16 @@ test_buffer_strprefix(void **state)
 }
 #endif
 
-#if defined(IMPLEMENTATION_2_2)
-/* Buffer list implementation was added at 2.2 with this signature:
- * buffer_list_push (struct buffer_list *ol, const unsigned char *str)
- */
-#define teststr_type unsigned char *
-#elif defined(IMPLEMENTATION_2_3)
+#if defined(IMPLEMENTATION_2_3)
 /* Support the 2.3 signature change:
  * buffer_list_push(struct buffer_list *ol, const char *str)
  */
 #define teststr_type char *
+#elif defined(IMPLEMENTATION_2_2)
+/* Buffer list implementation was added at 2.2 with this signature:
+ * buffer_list_push (struct buffer_list *ol, const unsigned char *str)
+ */
+#define teststr_type unsigned char *
 #endif
 
 #if defined(IMPLEMENTATION_2_2)
@@ -448,7 +448,13 @@ main(int argc, char **argv)
          * repo
          */
 #elif defined(IMPLEMENTATION_2_4)
-        result = AUTOMAKE_TEST_HARD_ERROR;
+        /* 
+         * I checked that no test features are accidentally disabled in the 2.3
+         * branch. Ie, tests can can be performed in this branch, there are no
+         * blindspots. However, feature coverage is pretty low, only aggregate
+         * tests are done. More is needed.
+         * Ie, a fail is deserved, and a pass is also deserved (but not earned)
+         */
         /* Force human to check that the test is checking all available features
          * in 2.4
          * If this is are reading this, and have checked that all features that
