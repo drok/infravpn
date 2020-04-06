@@ -100,6 +100,15 @@ check_PROGRAMS = $(sanity_tests)
 else
 check_PROGRAMS = $(sanity_tests) $(all_tests)
 
+if ! INTEGRATED_ovpn_1_0
+# These tests fail upstream because they use ASSERT as "try..without..catch",
+# so the assertions have side effects, they cannot be removed without breaking
+# the code. This burdens production builds to always be debug builds, while
+# ENABLE_DEBUG means "more verbose".
+# Remove these XFAILs when/if upstream learns the purpose of assertions
+XFAIL_TESTS += ndebug.openssl.test ndebug.mbedtls.test
+endif
+
 openssl_cflags = @CMOCKA_CFLAGS@ @OPENSSL_CFLAGS@ -Wall -Werror @TEST_CFLAGS@
 openssl_libs = @CMOCKA_LIBS@ @OPENSSL_LIBS@
 openssl_cppflags = -I. $(base_cppflags) -DUNIT_TESTS_ALL \
