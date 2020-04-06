@@ -191,7 +191,7 @@ test_tls_crypt_setup(void **state) {
     struct test_tls_crypt_context *ctx = calloc(1, sizeof(*ctx));
     *state = ctx;
 
-    struct key key = { 0 };
+    struct key key = { };
 
 #if defined(IMPLEMENTATION_2_4)
 /* code removed at 489c7bf93 tls-crypt: introduce tls_crypt_kt() */

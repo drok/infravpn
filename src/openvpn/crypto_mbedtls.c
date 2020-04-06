@@ -245,8 +245,8 @@ show_available_engines(void)
 mbedtls_ctr_drbg_context *
 rand_ctx_get(void)
 {
-    static mbedtls_entropy_context ec = {0};
-    static mbedtls_ctr_drbg_context cd_ctx = {0};
+    static mbedtls_entropy_context ec = {};
+    static mbedtls_ctr_drbg_context cd_ctx = {};
     static bool rand_initialised = false;
 
     if (!rand_initialised)
