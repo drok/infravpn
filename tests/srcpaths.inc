@@ -34,6 +34,13 @@ if TREE_VERSION_2_3
     compat_srcdir = $(top_srcdir)/src/compat
 endif
 
+if TREE_VERSION_2_4
+    # plugin header is now generated since 9de35d46
+    openvpn_includedir = $(top_builddir)/include
+    openvpn_srcdir = $(top_srcdir)/src/openvpn
+    compat_srcdir = $(top_srcdir)/src/compat
+endif
+
 if TREE_VERSION_FUTURE_EXAMPLE
     openvpn_includedir = $(top_srcdir)/new-path/to/include
     openvpn_srcdir = $(top_srcdir)/new-path/to/openvpn

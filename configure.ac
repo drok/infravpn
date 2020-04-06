@@ -76,13 +76,18 @@ dnl # TREE_VERSION conditional.
 if test "$ac_unique_file" = "syshead.h" ; then
  tree_structure_version="2.0"
 elif test "$ac_unique_file" = "src/openvpn/syshead.h" ; then
- tree_structure_version="2.3"
+  if expr "$ac_config_headers" : '.* include/openvpn-plugin.h' >/dev/null ; then
+    tree_structure_version="2.4"
+  else
+    tree_structure_version="2.3"
+  fi
 fi
 # Do not add more. New trees set the tree_structure_version directly, below.
 
 # tree_structure_version="5.7"
 AM_CONDITIONAL([TREE_VERSION_2_0], [test "$tree_structure_version" = "2.0"])
 AM_CONDITIONAL([TREE_VERSION_2_3], [test "$tree_structure_version" = "2.3"])
+AM_CONDITIONAL([TREE_VERSION_2_4], [test "$tree_structure_version" = "2.4"])
 AM_CONDITIONAL([TREE_VERSION_FUTURE_EXAMPLE], [test "$tree_structure_version" = "5.7"])
 # #################### END Tree-Structure Versioning ###########################
 
@@ -268,6 +273,7 @@ AM_CONDITIONAL([ENABLE_UNITTESTS_ALL], [test "${enable_unit_tests}" = "all"])
 AC_ARG_VAR([TEST_CPPFLAGS], [Preprocessor flags applied to all C unit tests])
 AC_ARG_VAR([TEST_CFLAGS], [Compiler flags applied to all C unit tests])
 AC_ARG_VAR([TEST_LDFLAGS], [Linker flags applied to all C unit tests])
+TEST_CFLAGS="$TEST_CFLAGS -g"
 
 AS_IF([test "${enable_unit_tests}" != "no"], [
     # Check if cmocka is available - needed for unit testing

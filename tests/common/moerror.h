@@ -34,6 +34,7 @@
 #include <string.h>
 #include <setjmp.h>
 #include <cmocka.h>
+#include <assert.h>
 
 #include "errlevel.h"
 
@@ -58,13 +59,19 @@
   }
 
 #define ASSERT(x)  mock_assert(!!(x), #x, __FILE__, __LINE__)
-#define static_assert(expr, diagnostic) assert_true( (expr) && (diagnostic))
 #define IS_INITIALIZED(x) ((x)->is_init)
 #else
 #define ASSERT(x) do { (void)sizeof(x); } while(0)
-#define static_assert(expr, diagnostic)
 #define my_expect_assert_failure(function_call, expected_assertion, explain)
 #define IS_INITIALIZED(x) 1
+#endif
+
+/* Poor-man's static_assert() for when not supplied by assert.h, taken from
+ * Linux's sys/cdefs.h under GPLv2 */
+#ifndef static_assert
+#define static_assert(expr, diagnostic) \
+    extern int (*__OpenVPN_static_assert_function (void)) \
+      [!!sizeof (struct { int __error_if_negative: (expr) ? 2 : -1; })]
 #endif
 
 /* verbosity */
