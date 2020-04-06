@@ -30,6 +30,8 @@
 #include <cmocka.h>
 #include <getopt.h>
 
+#include <syshead.h>
+
 #if !defined(FIXED_IMPLEMENTATION_HEADER_INCLUDES)
     /* I'm adding this here as a workaround for broken header include strategy
      *
