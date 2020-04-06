@@ -32,9 +32,9 @@
 #include "config-msvc.h"
 #endif
 
-#include "syshead.h"
-
 #if defined(ENABLE_CRYPTO) && defined(ENABLE_CRYPTO_MBEDTLS)
+
+#include "syshead.h"
 
 #include "errlevel.h"
 #include "basic.h"
