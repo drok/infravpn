@@ -51,3 +51,30 @@ config-version.h: $(top_srcdir)/.git/logs/HEAD
 	echo "#define CONFIGURE_GIT_FLAGS \"$${CONFIGURE_GIT_CHFILES}$${CONFIGURE_GIT_UNCOMMITTED}\"" >> $@-t && mv $@-t $@
 endif
 endif
+
+# target for building without running the tests
+.PHONY: all_tests
+all_tests: $(check_PROGRAMS)
+
+# automake 1.13.1d to 1.14.1 contain an E2BIG bug (http://debbugs.gnu.org/18744)
+# in the detection of gnu make, instroduced at automake 3de278 (1.13.1d), and
+# fixed e7c14d (1.15)
+# This definition of am__is_gnu_make overrides the buggy version in that range
+# of automakes. For versions below the 1.13.1d this define will be unused,
+# and benign.
+# It this definition still has a bug, it will overwrite any automake bugfixes,
+# and whoever runs into it, should replace it with the best version of the
+# detection scriptlet at that future time.
+# As of this writing, this scriptlet is current in automake/master(ae911) and
+# the latest release (1.16.2)
+am__is_gnu_make = { \
+  if test -z '$(MAKELEVEL)'; then \
+    false; \
+  elif test -n '$(MAKE_HOST)'; then \
+    true; \
+  elif test -n '$(MAKE_VERSION)' && test -n '$(CURDIR)'; then \
+    true; \
+  else \
+    false; \
+  fi; \
+}
