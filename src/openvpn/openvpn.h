@@ -49,6 +49,8 @@
 #endif
 #include "manage.h"
 #include "pf.h"
+#include "quirks.h"
+#include "mtu.h" /* for struct frame */
 
 /*
  * Our global key schedules, packaged thusly
@@ -266,8 +268,6 @@ struct context_2
 #ifdef ENABLE_FRAGMENT
   /* Object to handle advanced MTU negotiation and datagram fragmentation */
   struct fragment_master *fragment;
-  struct frame frame_fragment;
-  struct frame frame_fragment_omit;
 #endif
 
 #ifdef ENABLE_FEATURE_SHAPER
@@ -304,6 +304,10 @@ struct context_2
   struct event_timeout inactivity_interval;
   int inactivity_bytes;
 
+  /* Path MTU Discovery Interval
+   */
+  struct event_timeout pmtud_interval;
+
 #ifdef ENABLE_OCC
   /* the option strings must match across peers */
   char *options_string_local;
@@ -326,10 +330,10 @@ struct context_2
 
 #ifdef ENABLE_OCC
   /* remote wants us to send back a load test packet of this size */
-  int occ_mtu_load_size;
+  int XXX_occ_mtu_load_size;
 
-  struct event_timeout occ_mtu_load_test_interval;
-  int occ_mtu_load_n_tries;
+  struct event_timeout XXX_occ_mtu_load_test_interval;
+  int XXX_occ_mtu_load_n_tries;
 #endif
 
 #ifdef ENABLE_CRYPTO
@@ -494,8 +498,8 @@ struct context_2
   struct man_def_auth_context mda_context;
 #endif
   
-  /* Quirk/bug management, bitfield with definition in quirks.h */
-  packet_id_type    has_bugfixes_v2;
+  /* Quirk/bug management, bitfields with definition in quirks.h */
+  struct quirks     bugfixes;
   
 };
 

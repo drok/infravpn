@@ -216,7 +216,12 @@ FILE *msg_fp(const unsigned int flags);
 #else
 #define ASSERT(x) do { if (!(x)) assert_failed(__FILE__, __LINE__, NULL); } while (false)
 #endif
+
+#if !defined(NDEBUG)
 #define IS_INITIALIZED(x) ((x)->is_init)
+#else
+#define IS_INITIALIZED(x) (1)
+#endif
 
 void assert_failed (const char *filename, int line, const char *condition)
   __attribute__((__noreturn__));

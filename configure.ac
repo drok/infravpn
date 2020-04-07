@@ -307,7 +307,22 @@ AC_ARG_WITH(
 	,
 	[with_plugindir="\$(libdir)/openvpn/plugins"]
 )
-
+AC_ARG_ENABLE(
+	[link-mss],
+	[AS_HELP_STRING([--enable-link-mss@<:@=<MSS>@:>@], [Enable limiting
+                                permitted TCP/UDP link MSS size. Default: not
+				limited (MSS will be @<:@default=65507@:>@
+				To limit buffering requirements and enable jumbo
+				frames, set to >=8972. To enable regular
+				ethernet, and no larger packets, set to 1472.
+				This option is useful for embedded systems with
+				limited RAM.])
+]
+)
+AS_IF([test "x$enable_link_mss" != "x"],
+    [AC_DEFINE_UNQUOTED([LINK_MSS], [${enable_link_mss}],
+				[Maximum allowed UDP Link Segment Size])]
+)
 
 AC_DEFINE_UNQUOTED([TARGET_ALIAS], ["${host}"], [A string representing our host])
 case "$host" in

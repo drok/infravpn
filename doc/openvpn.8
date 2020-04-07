@@ -357,7 +357,6 @@ block:
 .B local,
 .B lport,
 .B mssfix,
-.B mtu-disc,
 .B nobind,
 .B port,
 .B proto,
@@ -1288,22 +1287,7 @@ This parameter only controls internal OpenVPN buffer sizing,
 so there is no transmission overhead associated with using a larger value.
 .\"*********************************************************
 .TP
-.B \-\-mtu\-disc type
-Should we do Path MTU discovery on TCP/UDP channel?  Only supported on OSes such
-as Linux that supports the necessary system call to set.
-
-.B 'no'
--- Never send DF (Don't Fragment) frames
-.br
-.B 'maybe'
--- Use per-route hints
-.br
-.B 'yes'
--- Always DF (Don't Fragment)
-.br
-.\"*********************************************************
-.TP
-.B \-\-mtu\-test
+.B \-\-mtu-test
 To empirically measure MTU on connection startup,
 add the
 .B \-\-mtu\-test

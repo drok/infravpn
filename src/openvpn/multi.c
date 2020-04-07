@@ -2537,12 +2537,14 @@ gremlin_flood_clients (struct multi_context *m)
   if (level)
     {
       struct gc_arena gc = gc_new ();
-      struct buffer buf = alloc_buf_gc (BUF_SIZE (&m->top.c2.frame), &gc);
       struct packet_flood_parms parm = get_packet_flood_parms (level);
+      struct buffer buf = alloc_buf_gc (parm.packet_size + frame_get_data_headroom (&m->top.c2.frame), &gc);
       int i;
 
-      ASSERT (buf_init (&buf, FRAME_HEADROOM (&m->top.c2.frame)));
-      parm.packet_size = min_int (parm.packet_size, MAX_RW_SIZE_TUN (&m->top.c2.frame));
+      bool success = buf_init (&buf, frame_get_data_headroom (&m->top.c2.frame));
+      ASSERT (success && "gremlin flood buffer initialization succeeded");
+      ASSERT(parm.packet_size == BCAP(&buf));
+      parm.packet_size = min_int (parm.packet_size, BCAP(&buf));
 
       msg (D_GREMLIN, "GREMLIN_FLOOD_CLIENTS: flooding clients with %d packets of size %d",
 	   parm.n_packets,
@@ -2600,7 +2602,7 @@ multi_top_init (struct multi_context *m, const struct context *top, const bool a
 {
   inherit_context_top (&m->top, top);
   m->top.c2.buffers = NULL;
-  if (alloc_buffers)
+  if (alloc_buffers) /* FIXME: Always true */
     m->top.c2.buffers = init_context_buffers (&top->c2.frame);
 }
 

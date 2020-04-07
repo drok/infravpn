@@ -179,7 +179,7 @@ overlapped_io_init (struct overlapped_io *o,
     msg (M_ERR, "Error: overlapped_io_init: CreateEvent failed");
 
   /* allocate buffer for overlapped I/O */
-  alloc_buf_sock_tun (&o->buf_init, frame, tuntap_buffer, 0);
+  alloc_buf_sock_tun (&o->buf_init, frame, tuntap_buffer);
 }
 
 void

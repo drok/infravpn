@@ -25,6 +25,7 @@
 #ifndef FORWARD_INLINE_H
 #define FORWARD_INLINE_H
 
+#include "rfc4821.h"
 /*
  * Inline functions
  */
@@ -232,6 +233,26 @@ get_link_socket_info (struct context *c)
     return c->c2.link_socket_info;
   else
     return &c->c2.link_socket->info;
+}
+
+/*
+ * Should we start PMTU Discovery?
+ */
+static inline void
+check_pmtud (struct context *c)
+{
+  if (event_timeout_trigger (&c->c2.pmtud_interval,
+				&c->c2.timeval,
+				ETT_DEFAULT))
+    {
+#ifdef ENABLE_SSL
+      plpmtud_start (&c->c2.tls_multi->session[TM_ACTIVE].key[KS_PRIMARY].send_reliable->pmtud_state);
+#endif
+#if defined(WORKAROUND_UNRELIABLE_RELIABLE)
+      plpmtud_hint(&c->c2.tls_multi->session[TM_ACTIVE].key[KS_PRIMARY].send_reliable->pmtud_state,
+                   c->c2.max_recv_size_local + DATA_ENCAPSULATION(&c->c2.frame, get_link_socket_info (c)->proto) - 1);
+#endif
+    }
 }
 
 static inline void

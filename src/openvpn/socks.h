@@ -46,7 +46,11 @@ struct socks_proxy_info {
   char authfile[256];
 };
 
-void socks_adjust_frame_parameters (struct frame *frame, int proto);
+static inline size_t
+socks_get_headroom(bool enabled)
+{
+  return enabled ? 10 : 0;
+}
 
 struct socks_proxy_info *socks_proxy_new (const char *server,
 					  int port,

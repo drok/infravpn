@@ -115,6 +115,11 @@ openvpn_SOURCES = \
 	tun.c tun.h \
 	win32.h win32_wfp.h win32.c \
 	cryptoapi.h cryptoapi.c
+if UNIT_TESTED_rfc4821
+# Do not include the RFC 4821 implementation unless it's unit-tested.
+openvpn_SOURCES += \
+	rfc4821.c rfc4821.h
+endif
 openvpn_LDADD = \
 	$(top_builddir)/src/compat/libcompat.la \
 	$(PACKAGE_LIBS) \

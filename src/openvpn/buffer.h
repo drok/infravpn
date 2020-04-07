@@ -569,11 +569,13 @@ buf_write_alloc (struct buffer *buf, int size)
   return ret;
 }
 
+#if defined(UNUSED)
 static inline uint8_t *
 buf_write_alloc_prepend (struct buffer *buf, int size, bool prepend)
 {
   return prepend ? buf_prepend (buf, size) : buf_write_alloc (buf, size);
 }
+#endif
 
 static inline uint8_t *
 buf_read_alloc (struct buffer *buf, int size)

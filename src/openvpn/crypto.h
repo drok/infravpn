@@ -106,8 +106,8 @@
 #include "basic.h"
 #include "buffer.h"
 #include "packet_id.h"
-#include "mtu.h"
 
+struct frame;
 /*
  * Defines a key type and key length for both cipher and HMAC.
  */
@@ -347,13 +347,23 @@ bool openvpn_decrypt (struct buffer *buf, struct buffer work,
 
 /** @} name Functions for performing security operations on data channel packets */
 
-void crypto_adjust_frame_parameters(struct frame *frame,
-				    const struct key_type* kt,
-				    bool cipher_defined,
-				    bool use_iv,
-				    bool packet_id,
-				    bool packet_id_long_form);
+uint16_t
+crypto_get_headroom(const struct key_type* kt,
+                    bool cipher_defined,
+                    bool use_iv,
+                    bool packet_id,
+                    bool packet_id_long_form);
 
+uint16_t
+crypto_get_overhead(const struct key_type* kt,
+                    bool cipher_defined,
+                    bool use_iv,
+                    bool packet_id,
+                    bool packet_id_long_form);
+
+uint16_t
+crypto_get_alignment(const struct key_type* kt,
+                     bool cipher_defined);
 
 /* Minimum length of the nonce used by the PRNG */
 #define NONCE_SECRET_LEN_MIN 16

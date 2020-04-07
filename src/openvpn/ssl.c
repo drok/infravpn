@@ -68,6 +68,8 @@
 
 #include "memdbg.h"
 
+#include "quirks.h"
+
 #ifndef ENABLE_OCC
 static const char ssl_default_options_string[] = "V0 UNDEF";
 #endif
@@ -290,45 +292,6 @@ tls_limit_reneg_bytes (const cipher_kt_t *cipher, int *reneg_bytes)
 	  *reneg_bytes = 64 * 1024 * 1024;
 	}
     }
-}
-
-/*
- * Max number of bytes we will add
- * for data structures common to both
- * data and control channel packets.
- * (opcode only).
- */
-void
-tls_adjust_frame_parameters(struct frame *frame)
-{
-  frame_add_to_extra_frame (frame, P_OPCODE_LEN); /* space for opcode */
-}
-
-/*
- * Max number of bytes we will add
- * to control channel packet. 
- */
-static void
-tls_init_control_channel_frame_parameters(const struct frame *data_channel_frame,
-					  struct frame *frame)
-{
-  /*
-   * frame->extra_frame is already initialized with tls_auth buffer requirements,
-   * if --tls-auth is enabled.
-   */
-
-  /* inherit link MTU and extra_link from data channel */
-  frame->link_mtu = data_channel_frame->link_mtu;
-  frame->extra_link = data_channel_frame->extra_link;
-
-  /* set extra_frame */
-  tls_adjust_frame_parameters (frame);
-  reliable_ack_adjust_frame_parameters (frame, CONTROL_SEND_ACK_MAX);
-  frame_add_to_extra_frame (frame, SID_SIZE + sizeof (packet_id_type));
-
-  /* set dynamic link MTU to cap control channel packets at 1250 bytes */
-  ASSERT (TUN_LINK_DELTA (frame) < min_int (frame->link_mtu, 1250));
-  frame->link_mtu_dynamic = min_int (frame->link_mtu, 1250) - TUN_LINK_DELTA (frame);
 }
 
 void
@@ -749,15 +712,8 @@ is_hard_reset (int op, int key_method)
  *                       initialized.  This structure should already have
  *                       been allocated before calling this function.
  */
-#if defined(DONT_PACK_CONTROL_FRAMES)
 static void
 key_state_init (struct tls_session *session, struct key_state *ks)
-#else
-static void
-key_state_init (struct tls_session *session,
-                struct key_state *ks,
-                const struct frame *frame)
-#endif
 {
   update_time ();
 
@@ -796,17 +752,17 @@ key_state_init (struct tls_session *session,
   /* allocate buffers */
   ks->plaintext_read_buf = alloc_buf (TLS_CHANNEL_BUF_SIZE);
   ks->plaintext_write_buf = alloc_buf (TLS_CHANNEL_BUF_SIZE);
-#if defined(DONT_PACK_CONTROL_FRAMES)
-  ks->ack_write_buf = alloc_buf (BUF_SIZE (&session->opt->frame));
-  reliable_send_init (ks->send_reliable, BUF_SIZE (&session->opt->frame));
-  reliable_rec_init (ks->rec_reliable, BUF_SIZE (&session->opt->frame),
-		 FRAME_HEADROOM (&session->opt->frame));
-#else
-  ks->ack_write_buf = alloc_buf (BUF_SIZE (frame));
-  reliable_send_init (ks->send_reliable, BUF_SIZE (frame),
-		 FRAME_HEADROOM (frame));
-  reliable_rec_init (ks->rec_reliable, BUF_SIZE (frame));
-#endif
+  ks->ack_write_buf = alloc_buf (frame_get_control_encapsulation (session->opt->frame, RELIABLE_ACK_SIZE));
+  reliable_send_init (ks->send_reliable, frame_get_link_bufsize (session->opt->frame),
+		 frame_get_control_headroom(session->opt->frame, CONTROL_SEND_ACK_MAX));
+  reliable_rec_init (ks->rec_reliable, LINK_RECV_BUFSIZE_STARTUP(session->opt->frame));
+
+  /* Tell peer what bugfixes I have implemented
+   * The packet_id in the initial HARD_RESET = peer's bugfix_map 
+   * (c->c2.has_bugfixes_v2)
+   */
+  ks->send_reliable->packet_id = 0 BUGFIXES_V2(DEFINE_BITMAP);
+
   reliable_set_timeout (ks->send_reliable, session->opt->packet_timeout);
 
   /* init packet ID tracker */
@@ -909,13 +865,8 @@ static inline void tls_session_set_self_referential_pointers (struct tls_session
  *                       initialized.  This structure should already have
  *                       been allocated before calling this function.
  */
-#if defined(DONT_PACK_CONTROL_FRAMES)
 static void
 tls_session_init (struct tls_multi *multi, struct tls_session *session)
-#else
-static void
-tls_session_init (struct tls_multi *multi, struct tls_session *session, const struct frame *frame)
-#endif
 {
   struct gc_arena gc = gc_new ();
 
@@ -959,11 +910,7 @@ tls_session_init (struct tls_multi *multi, struct tls_session *session, const st
   /* load most recent packet-id to replay protect on --tls-auth */
   packet_id_persist_load_obj (session->tls_auth.pid_persist, session->tls_auth.packet_id);
 
-#if defined(DONT_PACK_CONTROL_FRAMES)
   key_state_init (session, &session->key[KS_PRIMARY]);
-#else
-  key_state_init (session, &session->key[KS_PRIMARY], frame);
-#endif
 
   dmsg (D_TLS_DEBUG, "TLS: tls_session_init: new session object, sid=%s",
        session_id_print (&session->session_id, &gc));
@@ -1008,17 +955,8 @@ tls_session_free (struct tls_session *session, bool clear)
 /** @} addtogroup control_processor */
 
 
-#if defined(DONT_PACK_CONTROL_FRAMES)
 static void
 move_session (struct tls_multi* multi, int dest, int src, bool reinit_src)
-#else
-static void
-move_session (struct tls_multi* multi, 
-              int dest, 
-              int src, 
-              bool reinit_src,
-              const struct frame *frame)
-#endif
 {
   msg (D_TLS_DEBUG_LOW, "TLS: move_session: dest=%s src=%s reinit_src=%d",
        session_index_name(dest),
@@ -1032,34 +970,19 @@ move_session (struct tls_multi* multi,
   tls_session_set_self_referential_pointers (&multi->session[dest]);
 
   if (reinit_src)
-#if defined(DONT_PACK_CONTROL_FRAMES)
     tls_session_init (multi, &multi->session[src]);
-#else
-    tls_session_init (multi, &multi->session[src], frame);
-#endif
   else
     CLEAR (multi->session[src]);
 
   dmsg (D_TLS_DEBUG, "TLS: move_session: exit");
 }
 
-#if defined(DONT_PACK_CONTROL_FRAMES)
 static void
 reset_session (struct tls_multi *multi, struct tls_session *session)
 {
   tls_session_free (session, false);
   tls_session_init (multi, session);
 }
-#else
-static void
-reset_session (struct tls_multi *multi,
-               struct tls_session *session,
-               const struct frame *frame)
-{
-  tls_session_free (session, false);
-  tls_session_init (multi, session, frame);
-}
-#endif
 
 #if 0
 /*
@@ -1141,25 +1064,14 @@ tls_multi_init (struct tls_options *tls_options)
 }
 
 void
-tls_multi_init_finalize (struct tls_multi* multi, const struct frame* frame)
+tls_multi_init_finalize (struct tls_multi* multi)
 {
-#if defined(DONT_PACK_CONTROL_FRAMES)
-  tls_init_control_channel_frame_parameters (frame, &multi->opt.frame);
-  
   /* initialize the active and untrusted sessions */
 
   tls_session_init (multi, &multi->session[TM_ACTIVE]);
 
   if (!multi->opt.single_session)
     tls_session_init (multi, &multi->session[TM_UNTRUSTED]);
-#else
-  /* initialize the active and untrusted sessions */
-
-  tls_session_init (multi, &multi->session[TM_ACTIVE], frame);
-
-  if (!multi->opt.single_session)
-    tls_session_init (multi, &multi->session[TM_UNTRUSTED], frame);
-#endif
 }
 
 /*
@@ -1179,22 +1091,8 @@ tls_auth_standalone_init (struct tls_options *tls_options,
   tas->tls_auth_options.key_ctx_bi = &tas->tls_auth_key;
   tas->tls_auth_options.flags |= CO_PACKET_ID_LONG_FORM;
 
-#if defined(DONT_PACK_CONTROL_FRAMES)
-  /* get initial frame parms, still need to finalize */
-  tas->frame = tls_options->frame;
-#endif
-
   return tas;
 }
-
-#if defined(DONT_PACK_CONTROL_FRAMES)
-void
-tls_auth_standalone_finalize (struct tls_auth_standalone *tas,
-			      const struct frame *frame)
-{
-  tls_init_control_channel_frame_parameters (frame, &tas->frame);
-}
-#endif
 
 /*
  * Set local and remote option compatibility strings.
@@ -1306,6 +1204,136 @@ swap_hmac (struct buffer *buf, const struct crypto_options *co, bool incoming)
   }
 }
 
+/* The packet_id field in a HARD_RESET message is not a packet id, but 
+ * the peer's link parameters (eg, link-mtu). Based on this number, the tls
+ * session can be initialized, and TLS negotiation can start. This parameter
+ * shares the same position as packet_id in the other TLS packets, because:
+ *
+ * 1. It's a meaningless number from a TLS point of view (ie, there is no
+ *    previous packet to check sequence against).
+ * 2. It allows link parameters to be negotiated in a backwards compatible way
+ *    Both new-client <> old-server and old-client <> new-server are well behaved
+ *    when this number is not zero.
+ *
+ */
+
+#define link_params_format "%u"
+typedef unsigned int link_params_print_type;
+
+#define LINK_PARAM_MTU(x) ( (x) & 0xffff )
+
+static const char *
+quirk_name_str(quirks_v2_type bug)
+{
+  switch (bug)
+    {
+      BUGFIXES_V2(DEFINE_QUIRKNAMES)
+    }
+  ASSERT (0 && "All quirk names are known");
+  return NULL;
+}
+
+static void
+read_peer_bugfixes_v2 (struct buffer *buf, quirks_v2_type *peer_bugfixes)
+{
+  quirks_v2_type known_bugs = 0 BUGFIXES_V2(DEFINE_BITMAP);
+  quirks_v2_type net_bugfixes;
+
+  int advance = BLEN(buf) - sizeof (net_bugfixes);
+
+  if (buf_advance(buf, advance))
+    {
+      if (buf_read (buf, &net_bugfixes, sizeof (net_bugfixes)))
+        {
+          *peer_bugfixes = ntohpid (net_bugfixes);
+          
+          quirks_v2_type peer_bugs = known_bugs & ~*peer_bugfixes;
+          quirks_v2_type my_bugs = *peer_bugfixes & ~known_bugs;
+          if (my_bugs != 0)
+            {
+              msg (D_HANDSHAKE, "Peer knows of new bugs: 0x%08x - please update.",
+                        my_bugs);
+            }
+          if (peer_bugs)
+            {
+              char buf[1024];
+              size_t bufspace;
+              int bit;
+              quirks_v2_type bug = 1;
+              for ( bug = 1, bufspace = sizeof(buf); bug ; bug <<= 1)
+                {
+                  if (peer_bugs & bug)
+                    {
+                      bufspace += snprintf(
+                        &buf[sizeof(buf) - bufspace], bufspace, "%s%s", 
+                        bufspace != sizeof(buf) ? ", " : "",
+                        quirk_name_str(bug));
+                    }
+                }
+              msg (D_SHOW_QUIRKS, "Peer quirks (will workaround): %s", buf);
+            }
+        }
+      buf_prepend(buf, advance + sizeof (net_bugfixes));
+    }
+}
+
+static void
+do_new_link_startup(struct tls_multi *multi,
+                    struct tls_session *session,
+                    struct quirks *bugfixes,
+                    bool reset_is_acked)
+{
+    struct key_state *ks = &session->key[KS_PRIMARY];
+
+    /* packet sequence starts from the same value as the bugfix 
+     * word
+     */
+    ks->rec_reliable->packet_id = bugfixes->v2;
+
+    if (!multi->opt.server && !reset_is_acked)
+      {
+
+        /* Client talking to old server, which does not give its 
+         * bugfixes in HARD_RESET
+         * 
+         * Server thinks our initial HARD_RESET "breaks 
+         * sequentiality" because of our bugfixes and won't ACK
+         * it. We must renumber already queued buffers to start
+         * from pid=0 and resend it
+         * 
+         * The fact the old server responded to a HARD_RESET
+         * with an unexpected non-zero packet_id is itself a
+         * quirk that we exploit to _quickly_ learn it does not
+         * support the quirk/bugfix negotiation.
+         * 
+         * If there should be a future version that fixes that
+         * quirk, such that it neither implements the quirk/
+         * bugfix negotiation, nor responds to odd HARD_STARTS,
+         * *that* will be a MISSING_QUIRK_BUGFIX_NEGOTIATION,
+         * and would require a WORKAROUND, to renumber and
+         * retransmit on the first the HARD_RESET time out.
+         * 
+         * A future version that implements this negotiation
+         * implicitly fixes the HARD_RESET response quirk, by
+         * standardizing the behaviour of always responding to
+         * HARD_RESET, regardless of the bugfix word.
+         */
+         reliable_renumber(ks->send_reliable, - (0 BUGFIXES_V2(DEFINE_BITMAP)));
+      }
+
+    WORKAROUND(bugfixes, UNRELIABLE_RELIABLE)
+      {
+        /* Do not start PMTU discovery now, but after TLS
+         * handshake.
+         */
+      }
+    else
+      {
+        /* Start PMTU discovery */
+        plpmtud_start(&ks->send_reliable->pmtud_state);
+      }
+}
+
 #undef SWAP_BUF_SIZE
 
 /*
@@ -1316,6 +1344,7 @@ write_control_auth (struct tls_session *session,
 		    struct key_state *ks,
 		    struct buffer *buf,
 		    struct link_socket_actual **to_link_addr,
+                    const struct frame *frame,
 		    int opcode,
 		    int max_ack,
 		    bool prepend_ack)
@@ -1324,10 +1353,19 @@ write_control_auth (struct tls_session *session,
   struct buffer null = clear_buf ();
 
   ASSERT (link_socket_actual_defined (&ks->remote_addr));
-  ASSERT (reliable_ack_write
-	  (ks->rec_ack, buf, &ks->session_id_remote, max_ack, prepend_ack));
+  ASSERT (!prepend_ack || 
+          buf_reverse_capacity(buf) ==
+            frame_get_reliable_headroom(frame, prepend_ack && (buf->ip_pmtudisc == BUF_PMTUDISC_DONT) ? MIN(ks->rec_ack->len, max_ack) : 0));
+
+  /* Write acks, except on PMTUD probes */
+  bool written = reliable_ack_write
+    (ks->rec_ack, buf, &ks->session_id_remote,
+     (buf->ip_pmtudisc == BUF_PMTUDISC_DONT) ? max_ack : 0, prepend_ack);
+
+  ASSERT (written && "ACK field filled successfully");
+
   ASSERT (session_id_write_prepend (&session->session_id, buf));
-  ASSERT (header = buf_prepend (buf, P_OPCODE_LEN));
+  ASSERT (header = buf_prepend (buf, P_OPCODE_CONTROL_LEN));
   *header = ks->key_id | (opcode << P_OPCODE_SHIFT);
   if (session->tls_auth.key_ctx_bi->encrypt.hmac)
     {
@@ -1759,13 +1797,8 @@ flush_payload_buffer (struct key_state *ks)
  * Move the active key to the lame duck key and reinitialize the
  * active key.
  */
-#if defined(DONT_PACK_CONTROL_FRAMES)
 static void
 key_state_soft_reset (struct tls_session *session)
-#else
-static void
-key_state_soft_reset (struct tls_session *session, const struct frame *frame)
-#endif
 {
   struct key_state *ks = &session->key[KS_PRIMARY]; 	   /* primary key */
   struct key_state *ks_lame = &session->key[KS_LAME_DUCK]; /* retiring key */
@@ -1774,11 +1807,7 @@ key_state_soft_reset (struct tls_session *session, const struct frame *frame)
   key_state_free (ks_lame, false);
   *ks_lame = *ks;
 
-#if defined(DONT_PACK_CONTROL_FRAMES)
   key_state_init (session, ks);
-#else
-  key_state_init (session, ks, frame);
-#endif
   ks->session_id_remote = ks_lame->session_id_remote;
   ks->remote_addr = ks_lame->remote_addr;
 }
@@ -2236,6 +2265,15 @@ key_method_2_read (struct buffer *buf, struct tls_multi *multi, struct tls_sessi
   if (!session->opt->disable_occ &&
       !options_cmp_equal (options, session->opt->remote_options))
     {
+
+#if defined(FIXME) && defined(WORKAROUND_UNRELIABLE_RELIABLE)
+      WORKAROUND(bugfixes, UNRELIABLE_RELIABLE) */
+        {
+        /* FIXME: Use the peer's --fragment option to hint plpmtud_set_max_probe()
+         * To more quicky converge on the PMTU, if
+         */
+        }
+#endif
       options_warning (options, session->opt->remote_options);
       if (session->opt->ssl_flags & SSLF_OPT_VERIFY)
 	{
@@ -2313,9 +2351,6 @@ tls_process (struct tls_multi *multi,
 	     struct tls_session *session,
 	     struct buffer *to_link,
 	     struct link_socket_actual **to_link_addr,
-#if !defined(DONT_PACK_CONTROL_FRAMES)
-             const struct frame *frame,
-#endif
 	     struct link_socket_info *to_link_socket_info,
 	     interval_t *wakeup)
 {
@@ -2330,6 +2365,12 @@ tls_process (struct tls_multi *multi,
   ASSERT (ks->state != S_UNDEF);
   ASSERT (ks->state != S_ERROR);
   ASSERT (session_id_defined (&session->session_id));
+
+#if defined(DONT_PACK_CONTROL_FRAMES)
+#define TLS_FRAME (&multi->opt.frame)
+#else
+#define TLS_FRAME (frame)
+#endif
 
   /* Should we trigger a soft reset? -- new key, keeps old key for a while */
   if (ks->state >= S_ACTIVE &&
@@ -2346,11 +2387,7 @@ tls_process (struct tls_multi *multi,
 	   (int)(ks->established + session->opt->renegotiate_seconds - now),
 	   ks->n_bytes, session->opt->renegotiate_bytes,
 	   ks->n_packets, session->opt->renegotiate_packets);
-#if defined(DONT_PACK_CONTROL_FRAMES)
       key_state_soft_reset (session);
-#else
-      key_state_soft_reset (session, frame);
-#endif
     }
 
   /* Kill lame duck key transition_window seconds after primary key negotiation */
@@ -2390,8 +2427,16 @@ tls_process (struct tls_multi *multi,
 		  ks->must_negotiate = now + session->opt->handshake_window;
 		  ks->auth_deferred_expire = now + auth_deferred_expire_window (session->opt);
 
+                  /* Set-up the buffer to reserve just enough room for the acks
+                   * that need to be sent, as excess headroom is checked in
+                   * write_control_auth.
+                   */
+                  buf_init(buf, frame_get_control_headroom(multi->opt.frame, 
+                             MIN(CONTROL_SEND_ACK_MAX, ks->rec_ack->len)));
+
 		  /* null buffer */
-		  reliable_mark_active_outgoing (ks->send_reliable, buf, ks->initial_opcode);
+		  reliable_mark_active_outgoing (ks->send_reliable, buf, ks->initial_opcode, 
+                                           REL_ACTIVE, 0);
 		  INCR_GENERATED;
 	      
 		  ks->state = S_PRE_START;
@@ -2466,7 +2511,7 @@ tls_process (struct tls_multi *multi,
 
 	  /* Reliable buffer to outgoing TCP/UDP (send up to CONTROL_SEND_ACK_MAX ACKs
 	     for previously received packets) */
-	  if (!to_link->len && reliable_can_send (ks->send_reliable))
+	  if (!to_link->len && reliable_can_send (ks->send_reliable, multi->opt.frame))
 	    {
 	      int opcode;
 	      struct buffer b;
@@ -2476,7 +2521,7 @@ tls_process (struct tls_multi *multi,
 	      b = *buf;
 	      INCR_SENT;
 
-	      write_control_auth (session, ks, &b, to_link_addr, opcode,
+	      write_control_auth (session, ks, &b, to_link_addr, multi->opt.frame, opcode,
 				  CONTROL_SEND_ACK_MAX, true);
 	      *to_link = b;
 	      active = true;
@@ -2490,8 +2535,8 @@ tls_process (struct tls_multi *multi,
 	  if (!to_link->len && !reliable_ack_empty (ks->rec_ack))
 	    {
 	      buf = &ks->ack_write_buf;
-	      ASSERT (buf_init (buf, FRAME_HEADROOM (&multi->opt.frame)));
-	      write_control_auth (session, ks, buf, to_link_addr, P_ACK_V1,
+	      ASSERT (buf_init (buf, frame_get_reliable_headroom(multi->opt.frame, 0)));
+	      write_control_auth (session, ks, buf, to_link_addr, multi->opt.frame, P_ACK_V1,
 				  RELIABLE_ACK_SIZE, false);
 	      *to_link = *buf;
 	      active = true;
@@ -2624,11 +2669,49 @@ tls_process (struct tls_multi *multi,
 
 	  /* Outgoing Ciphertext to reliable buffer */
 	  if (ks->state >= S_START)
-	    {
-	      buf = reliable_get_buf_output_sequenced (ks->send_reliable);
-	      if (buf)
-		{
-		  int status = key_state_read_ciphertext (&ks->ks_ssl, buf, PAYLOAD_SIZE_DYNAMIC (&multi->opt.frame));
+            {
+            int n_acks = ks->rec_ack->len;
+	    while ( (buf = reliable_get_buf_output_sequenced (ks->send_reliable)) != NULL)
+            {
+                /* Setup buffer headroom for REL_PMTUD_PROBE - no acks. */
+                buf_init(buf, frame_get_control_headroom(multi->opt.frame, 0));
+                
+                /* Send any pmtu probes before attempting to send TLS data */
+                if (reliable_mark_active_outgoing (ks->send_reliable, buf, P_CONTROL_V1,
+                      REL_PMTUD_PROBE, frame_get_probe_encapsulation(multi->opt.frame)))
+                  {
+		    INCR_GENERATED;
+		    state_change = true; /* do Reliable > Link before returning */
+                    dmsg (D_TLS_DEBUG, "Outgoing Ciphertext -> Reliable");
+                    continue;
+                  }
+                  /* Pack Control frames to fill the link MTU.
+                   * This should cause initial negotiation to fail if tun-mtu
+                   * settings are too large on either server or client size.
+                   * The alternative is that negotiation succeeds with small(ish)
+                   * handshake packets, but the data channel fails to be useful
+                   * due to larger packets.
+                   * TODO: If the handshake can be accomplishes with 1 packet
+                   * (eg, very small server certificate), the handshake will
+                   * still use packets smaller than the data channel. In this case,
+                   * pad the first packet to link-mtu.
+                   */
+                  int reserve_frame_size = sizeof (packet_id_type) + SID_SIZE + 1;
+                  int acks_to_be_sent = MIN(n_acks, CONTROL_SEND_ACK_MAX);
+                  reserve_frame_size += reliable_ack_get_frame_extra(acks_to_be_sent);
+                  n_acks -= acks_to_be_sent;
+
+                  /* Set-up the buffer to reserve just enough room for the acks
+                   * that need to be sent, in order to fill the PMTU with useful
+                   * data.
+                   */
+                  buf_init(buf, frame_get_control_headroom(multi->opt.frame, acks_to_be_sent));
+
+ 
+		  int status = key_state_read_ciphertext (
+                    &ks->ks_ssl, buf,
+                    frame_get_control_payload_room(multi->opt.frame, acks_to_be_sent));
+
 		  if (status == -1)
 		    {
 		      msg (D_TLS_ERRORS,
@@ -2637,7 +2720,8 @@ tls_process (struct tls_multi *multi,
 		    }
 		  if (status == 1)
 		    {
-		      reliable_mark_active_outgoing (ks->send_reliable, buf, P_CONTROL_V1);
+		      reliable_mark_active_outgoing (ks->send_reliable, buf, P_CONTROL_V1,
+                                               REL_ACTIVE, 0);
 		      INCR_GENERATED;
 		      state_change = true;
 		      dmsg (D_TLS_DEBUG, "Outgoing Ciphertext -> Reliable");
@@ -2655,8 +2739,9 @@ tls_process (struct tls_multi *multi,
   if (!to_link->len && !reliable_ack_empty (ks->rec_ack))
     {
       buf = &ks->ack_write_buf;
-      ASSERT (buf_init (buf, FRAME_HEADROOM (TLS_FRAME)));
-      write_control_auth (session, ks, buf, to_link_addr, P_ACK_V1,
+      bool success = buf_init (buf, frame_get_reliable_headroom(multi->opt.frame, 0));
+      ASSERT (success && "Dedicated ACK buffer initialized successfully");
+      write_control_auth (session, ks, buf, to_link_addr, multi->opt.frame, P_ACK_V1,
 			  RELIABLE_ACK_SIZE, false);
       *to_link = *buf;
       active = true;
@@ -2716,9 +2801,6 @@ int
 tls_multi_process (struct tls_multi *multi,
 		   struct buffer *to_link,
 		   struct link_socket_actual **to_link_addr,
-#if !defined(DONT_PACK_CONTROL_FRAMES)
-                   const struct frame *frame,
-#endif
 		   struct link_socket_info *to_link_socket_info,
 		   interval_t *wakeup)
 {
@@ -2763,9 +2845,6 @@ tls_multi_process (struct tls_multi *multi,
 	  update_time ();
 
 	  if (tls_process (multi, session, to_link, &tla,
-#if !defined(DONT_PACK_CONTROL_FRAMES)
-                           frame,
-#endif
 			   to_link_socket_info, wakeup))
 	    active = TLSMP_ACTIVE;
 
@@ -2796,15 +2875,9 @@ tls_multi_process (struct tls_multi *multi,
 	      if (i == TM_ACTIVE
 		  && ks_lame->state >= S_ACTIVE
 		  && !multi->opt.single_session)
-#if defined(DONT_PACK_CONTROL_FRAMES)
 		move_session (multi, TM_LAME_DUCK, TM_ACTIVE, true);
 	      else
 		reset_session (multi, session);
-#else
-		move_session (multi, TM_LAME_DUCK, TM_ACTIVE, true, frame);
-	      else
-		reset_session (multi, session, frame);
-#endif
 	    }
 	}
     }
@@ -2831,11 +2904,7 @@ tls_multi_process (struct tls_multi *multi,
    * TLS control channel but not on the tunnel channel.
    */
   if (DECRYPT_KEY_ENABLED (multi, &multi->session[TM_UNTRUSTED].key[KS_PRIMARY])) {
-#if defined(DONT_PACK_CONTROL_FRAMES)
     move_session (multi, TM_ACTIVE, TM_UNTRUSTED, true);
-#else
-    move_session (multi, TM_ACTIVE, TM_UNTRUSTED, true, frame);
-#endif
     msg (D_TLS_DEBUG_LOW, "TLS: tls_multi_process: untrusted session promoted to %strusted",
 	 tas == TLS_AUTHENTICATION_SUCCEEDED ? "" : "semi-");
   }
@@ -2913,9 +2982,7 @@ bool
 tls_pre_decrypt (struct tls_multi *multi,
 		 const struct link_socket_actual *from,
 		 struct buffer *buf,
-#if !defined(DONT_PACK_CONTROL_FRAMES)
-                 const struct frame *frame,
-#endif
+         struct quirks *bugfixes,
 		 struct crypto_options *opt)
 {
   struct gc_arena gc = gc_new ();
@@ -3229,11 +3296,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 		  if (!read_control_auth (buf, &session->tls_auth, from))
 		    goto error;
 
-#if defined(DONT_PACK_CONTROL_FRAMES)
 		  key_state_soft_reset (session);
-#else
-		  key_state_soft_reset (session, frame);
-#endif
 
 		  dmsg (D_TLS_DEBUG,
 		       "TLS: received P_CONTROL_SOFT_RESET_V1 s=%d sid=%s",
@@ -3279,6 +3342,33 @@ tls_pre_decrypt (struct tls_multi *multi,
 		ks->session_id_remote = sid;
 		ks->remote_addr = *from;
 		++multi->n_sessions;
+
+                /* Extract the packet ID from the hard reset packet
+                 * If non-zero, it is the client's link-mtu. Calculate our
+                 * own link-mtu (MIN(client-mtu, server-mtu)), and tell
+                 * the client.
+                 * Then, after seeing each other's HARD_RESETs, including
+                 * the MTU's, both client and servers can size their reliable
+                 * buffers identically, before they start negotiating TLS
+                 * 
+                 * If it is an old client, it's first PID=0 so this MTU
+                 * negotiation is skipped, and both client and server will
+                 * use their respective configured MTU's (hopefully they
+                 * agree).
+                 * 
+                 * FIXME? If this is a new session, but from a different sw
+                 * version, the new bugfixes bitmap from the (TM_UNTRUSTED)
+                 * session would overwrite the old bitmap from the (TM_ACTIVE)
+                 * session. This would change our behaviour in the old session.
+                 * I don't know under what scenario this is even possible,
+                 * and how to test that scenario. Maybe MITM wants to change
+                 * behaviour by overwriting bugfixes, perhaps to exploit a bug?
+                 * 
+                 * So, avoiding overwriting
+                 * the bugfixed, by only doing for the primary session.
+                 */
+                if (i == TM_ACTIVE)
+                    read_peer_bugfixes_v2 (buf, &bugfixes->v2);
 	      }
 	    else if (!link_socket_actual_match (&ks->remote_addr, from))
 	      {
@@ -3312,7 +3402,13 @@ tls_pre_decrypt (struct tls_multi *multi,
 		       "TLS Error: reading acknowledgement record from packet");
 		  goto error;
 		}
-	      reliable_send_purge (ks->send_reliable, &send_ack);
+
+              reliable_send_purge (ks->send_reliable, &send_ack, multi->opt.frame);
+              if (new_link)
+                {
+                  do_new_link_startup(multi, session, bugfixes, !!send_ack.len);
+                }
+
 	    }
 
 	    if (op != P_ACK_V1 && reliable_can_get (ks->rec_reliable))
@@ -3336,7 +3432,7 @@ tls_pre_decrypt (struct tls_multi *multi,
 				     "Incoming control channel packet too big, dropping.");
 				goto error;
 			      }
-			    reliable_mark_active_incoming (ks->rec_reliable, in, id, op);
+			    reliable_mark_active_incoming (ks->rec_reliable, in, id);
 			  }
 
 			/* Process outgoing acknowledgment for packet just received, even if it's a replay */
@@ -3420,17 +3516,15 @@ tls_pre_decrypt_lite (const struct tls_auth_standalone *tas,
 	  goto error;
 	}
 
-#if defined(DONT_PACK_CONTROL_FRAMES)
-      if (buf->len > EXPANDED_SIZE_DYNAMIC (&tas->frame))
+      if (buf->len != frame_get_control_headroom (&tas->frame, 0))
 	{
 	  dmsg (D_TLS_STATE_ERRORS,
-	       "TLS State Error: Large packet (size %d) received from %s -- a packet no larger than %d bytes was expected",
+	       "TLS State Error: Wrong size packet (size %d) received from %s -- a %d-byte initial packet was expected",
 	       buf->len,
 	       print_link_socket_actual (from, &gc),
-	       EXPANDED_SIZE_DYNAMIC (&tas->frame));
+	       frame_get_control_headroom (&tas->frame, 0));
 	  goto error;
 	}
-#endif
 
       {
 	struct buffer newbuf = clone_buf (buf);
@@ -3552,11 +3646,11 @@ tls_post_encrypt (struct tls_multi *multi, struct buffer *buf)
       if (!multi->opt.server && multi->use_peer_id)
 	{
 	  peer = htonl(((P_DATA_V2 << P_OPCODE_SHIFT) | ks->key_id) << 24 | (multi->peer_id & 0xFFFFFF));
-	  ASSERT (buf_write_prepend (buf, &peer, 4));
+	  ASSERT (buf_write_prepend (buf, &peer, P_OPCODE_DATA_V2_LEN));
 	}
       else
 	{
-	  ASSERT (op = buf_prepend (buf, 1));
+	  ASSERT (op = buf_prepend (buf, P_OPCODE_DATA_V1_LEN));
 	  *op = (P_DATA_V1 << P_OPCODE_SHIFT) | ks->key_id;
 	}
       ++ks->n_packets;

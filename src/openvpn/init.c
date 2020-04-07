@@ -29,7 +29,6 @@
 #endif
 
 #include "syshead.h"
-#include "quirks.h"
 
 #include "win32.h"
 #include "init.h"
@@ -44,6 +43,9 @@
 #include "lladdr.h"
 #include "ping.h"
 #include "mstats.h"
+#include "socket.h"
+#include "options.h"
+#include "mtu.h"
 
 #include "memdbg.h"
 
@@ -573,7 +575,7 @@ init_port_share (struct context *c)
     {
       port_share = port_share_open (c->options.port_share_host,
 				    c->options.port_share_port,
-				    MAX_RW_SIZE_LINK (&c->c2.frame),
+				    frame_get_link_bufsize (&c->c2.frame),
 				    c->options.port_share_journal_dir);
       if (port_share == NULL)
 	msg (M_FATAL, "Fatal error: Port sharing failed");
@@ -609,6 +611,7 @@ init_static (void)
 #endif
 
   update_time ();
+  srand (now); /* pseudorandom data used to fill MTU probe packets */
 
 #ifdef ENABLE_CRYPTO
   init_ssl_lib ();
@@ -1117,7 +1120,7 @@ do_init_timers (struct context *c, bool deferred)
 	event_timeout_init (&c->c2.occ_interval, OCC_INTERVAL_SECONDS, now);
 
       if (c->options.mtu_test)
-	event_timeout_init (&c->c2.occ_mtu_load_test_interval, OCC_MTU_LOAD_INTERVAL_SECONDS, now);
+	event_timeout_init (&c->c2.XXX_occ_mtu_load_test_interval, OCC_MTU_LOAD_INTERVAL_SECONDS, now);
 #endif
 
       /* initialize packet_id persistence timer */
@@ -1450,7 +1453,7 @@ do_open_tun (struct context *c)
 						c->options.dev_type,
 						c->options.dev_node,
 						&gc);
-	  do_ifconfig (c->c1.tuntap, guess, TUN_MTU_SIZE (&c->c2.frame), c->c2.es);
+	  do_ifconfig (c->c1.tuntap, guess, c->options.ce.tun_mtu, c->c2.es);
 	}
 
       /* open the tun device */
@@ -1465,7 +1468,8 @@ do_open_tun (struct context *c)
       if (!c->options.ifconfig_noexec
 	  && ifconfig_order () == IFCONFIG_AFTER_TUN_OPEN)
 	{
-	  do_ifconfig (c->c1.tuntap, c->c1.tuntap->actual_name, TUN_MTU_SIZE (&c->c2.frame), c->c2.es);
+	  do_ifconfig (c->c1.tuntap, c->c1.tuntap->actual_name, 
+                   c->options.ce.tun_mtu, c->c2.es);
 	}
 
       /* run the up script */
@@ -1479,8 +1483,7 @@ do_open_tun (struct context *c)
 		   c->c1.tuntap->adapter_index,
 #endif
 		   dev_type_string (c->options.dev, c->options.dev_type),
-		   TUN_MTU_SIZE (&c->c2.frame),
-		   EXPANDED_SIZE (&c->c2.frame),
+		   c->options.ce.tun_mtu,
 		   print_in_addr_t (c->c1.tuntap->local, IA_EMPTY_IF_UNDEF, &gc),
 		   print_in_addr_t (c->c1.tuntap->remote_netmask, IA_EMPTY_IF_UNDEF, &gc),
 		   "init",
@@ -1502,13 +1505,15 @@ do_open_tun (struct context *c)
 	do_route (&c->options, c->c1.route_list, c->c1.route_ipv6_list,
 		  c->c1.tuntap, c->plugins, c->c2.es);
 
+#if defined(WIN32) && defined(FIXME)
       /*
        * Did tun/tap driver give us an MTU?
        */
       if (c->c1.tuntap->post_open_mtu)
-	frame_set_mtu_dynamic (&c->c2.frame,
+	XXX_frame_set_mtu_dynamic (&c->c2.frame,
 			       c->c1.tuntap->post_open_mtu,
 			       SET_MTU_TUN | SET_MTU_UPPER_BOUND);
+#endif
 
       ret = true;
       static_context = c;
@@ -1533,8 +1538,7 @@ do_open_tun (struct context *c)
 		     c->c1.tuntap->adapter_index,
 #endif
 		     dev_type_string (c->options.dev, c->options.dev_type),
-		     TUN_MTU_SIZE (&c->c2.frame),
-		     EXPANDED_SIZE (&c->c2.frame),
+		     c->options.ce.tun_mtu,
 		     print_in_addr_t (c->c1.tuntap->local, IA_EMPTY_IF_UNDEF, &gc),
 		     print_in_addr_t (c->c1.tuntap->remote_netmask, IA_EMPTY_IF_UNDEF, &gc),
 		     "restart",
@@ -1612,8 +1616,7 @@ do_close_tun (struct context *c, bool force)
                            adapter_index,
 #endif
                            NULL,
-                           TUN_MTU_SIZE (&c->c2.frame),
-                           EXPANDED_SIZE (&c->c2.frame),
+                           c->options.ce.tun_mtu,
                            print_in_addr_t (local, IA_EMPTY_IF_UNDEF, &gc),
                            print_in_addr_t (remote_netmask, IA_EMPTY_IF_UNDEF, &gc),
                            "init",
@@ -1642,8 +1645,7 @@ do_close_tun (struct context *c, bool force)
 		       adapter_index,
 #endif
 		       NULL,
-		       TUN_MTU_SIZE (&c->c2.frame),
-		       EXPANDED_SIZE (&c->c2.frame),
+		       c->options.ce.tun_mtu,
 		       print_in_addr_t (local, IA_EMPTY_IF_UNDEF, &gc),
 		       print_in_addr_t (remote_netmask, IA_EMPTY_IF_UNDEF, &gc),
 		       "init",
@@ -1678,8 +1680,7 @@ do_close_tun (struct context *c, bool force)
 			 adapter_index,
 #endif
 			 NULL,
-			 TUN_MTU_SIZE (&c->c2.frame),
-			 EXPANDED_SIZE (&c->c2.frame),
+			 c->options.ce.tun_mtu,
 			 print_in_addr_t (local, IA_EMPTY_IF_UNDEF, &gc),
 			 print_in_addr_t (remote_netmask, IA_EMPTY_IF_UNDEF, &gc),
 			 "restart",
@@ -1888,19 +1889,7 @@ do_deferred_options (struct context *c, const unsigned int found)
       msg (D_PUSH, "OPTIONS IMPORT: peer-id set");
       c->c2.tls_multi->use_peer_id = true;
       c->c2.tls_multi->peer_id = c->options.peer_id;
-      frame_add_to_extra_frame(&c->c2.frame, +3);	/* peer-id overhead */
-      if ( !c->options.ce.link_mtu_defined )
-	{
-	  frame_add_to_link_mtu(&c->c2.frame, +3);
-	  msg (D_PUSH, "OPTIONS IMPORT: adjusting link_mtu to %d",
-				EXPANDED_SIZE(&c->c2.frame));
-	}
-      else
-	{
-	  msg (M_WARN, "OPTIONS IMPORT: WARNING: peer-id set, but link-mtu"
-                       " fixed by config - reducing tun-mtu to %d, expect"
-                       " MTU problems", TUN_MTU_SIZE(&c->c2.frame) );
-	}
+      frame_init_pulled_opts(&c->c2.frame, c->c2.tls_multi->use_peer_id);
     }
 #endif
 #endif
@@ -2000,35 +1989,6 @@ do_startup_pause (struct context *c)
     socket_restart_pause (c);
   else
     do_hold (); /* do management hold on first context initialization */
-}
-
-/*
- * Finalize MTU parameters based on command line or config file options.
- */
-static void
-frame_finalize_options (struct context *c, const struct options *o)
-{
-  if (!o)
-    o = &c->options;
-
-  /*
-   * Set adjustment factor for buffer alignment when no
-   * cipher is used.
-   */
-  if (!CIPHER_ENABLED (c))
-    {
-      frame_align_to_extra_frame (&c->c2.frame);
-      frame_or_align_flags (&c->c2.frame,
-			    FRAME_HEADROOM_MARKER_FRAGMENT
-			    |FRAME_HEADROOM_MARKER_READ_LINK
-			    |FRAME_HEADROOM_MARKER_READ_STREAM);
-    }
-  
-  frame_finalize (&c->c2.frame,
-		  o->ce.link_mtu_defined,
-		  o->ce.link_mtu,
-		  o->ce.tun_mtu_defined,
-		  o->ce.tun_mtu);
 }
 
 /*
@@ -2154,12 +2114,6 @@ do_init_crypto_static (struct context *c, const unsigned int flags)
   /* Get key schedule */
   c->c2.crypto_options.key_ctx_bi = &c->c1.ks.static_key;
 
-  /* Compute MTU parameters */
-  crypto_adjust_frame_parameters (&c->c2.frame,
-				  &c->c1.ks.key_type,
-				  options->ciphername_defined,
-				  options->use_iv, options->replay, true);
-
   /* Sanity check on IV, sequence number, and cipher mode options */
   check_replay_iv_consistency (&c->c1.ks.key_type, options->replay,
 			       options->use_iv);
@@ -2273,14 +2227,6 @@ do_init_crypto_tls (struct context *c, const unsigned int flags)
   /* In short form, unique datagram identifier is 32 bits, in long form 64 bits */
   packet_id_long_form = cipher_kt_mode_ofb_cfb (c->c1.ks.key_type.cipher);
 
-  /* Compute MTU parameters */
-  crypto_adjust_frame_parameters (&c->c2.frame,
-				  &c->c1.ks.key_type,
-				  options->ciphername_defined,
-				  options->use_iv,
-				  options->replay, packet_id_long_form);
-  tls_adjust_frame_parameters (&c->c2.frame);
-
   /* Set all command-line TLS-related options */
   CLEAR (to);
 
@@ -2364,24 +2310,45 @@ do_init_crypto_tls (struct context *c, const unsigned int flags)
 #endif
 #endif
 
+  /* Init configuration-dependent parameters of the packetization object */
+  frame_init_config(&c->c2.frame,
+                    options->tls_auth_file ? c->c1.ks.key_type.hmac_length : 0,
+#if defined(ENABLE_SOCKS)
+                    socks_get_headroom(c->c2.link_socket->socks_proxy && c->c2.link_socket->info.proto == PROTO_UDPv4) +
+#endif
+                    0);
+
+  // if (c->mode == CM_TOP)
+    frame_init_crypto (&c->c2.frame,
+#ifdef ENABLE_LZO
+        lzo_get_headroom(!!(c->options.lzo & LZO_SELECTED)),
+#endif
+#ifdef ENABLE_FRAGMENT
+        fragment_get_headroom(!!c->options.ce.fragment),
+#endif
+        crypto_get_headroom(&c->c1.ks.key_type,
+                             c->options.ciphername_defined,
+                             c->options.use_iv,
+                             c->options.replay,
+                             !!c->c2.crypto_options.flags & CO_PACKET_ID_LONG_FORM),
+        crypto_get_overhead(&c->c1.ks.key_type,
+                             c->options.ciphername_defined,
+                             c->options.use_iv,
+                             c->options.replay,
+                            !!c->c2.crypto_options.flags & CO_PACKET_ID_LONG_FORM),
+        crypto_get_alignment(&c->c1.ks.key_type,
+                             c->options.ciphername_defined)
+    );
+
+
+
   /* TLS handshake authentication (--tls-auth) */
   if (options->tls_auth_file)
     {
       to.tls_auth_key = c->c1.ks.tls_auth_key;
       to.tls_auth.pid_persist = &c->c1.pid_persist;
       to.tls_auth.flags |= CO_PACKET_ID_LONG_FORM;
-#if defined(DONT_PACK_CONTROL_FRAMES)
-      crypto_adjust_frame_parameters (&to.frame,
-				      &c->c1.ks.key_type,
-				      false, false, true, true);
-#endif
     }
-
-#if defined(DONT_PACK_CONTROL_FRAMES)
-  /* If we are running over TCP, allow for
-     length prefix */
-  socket_adjust_frame_parameters (&to.frame, options->ce.proto);
-#endif
 
   /*
    * Initialize OpenVPN's master TLS-mode object.
@@ -2390,7 +2357,21 @@ do_init_crypto_tls (struct context *c, const unsigned int flags)
     c->c2.tls_multi = tls_multi_init (&to);
 
   if (flags & CF_INIT_TLS_AUTH_STANDALONE)
-    c->c2.tls_auth_standalone = tls_auth_standalone_init (&to, &c->c2.gc);
+    {
+      c->c2.tls_auth_standalone = tls_auth_standalone_init (&to, &c->c2.gc);
+
+      /* Init configuration-dependent parameters of the packetization object */
+      frame_init_config(&c->c2.tls_auth_standalone->frame,
+            options->tls_auth_file ? c->c1.ks.key_type.hmac_length : 0,
+#if defined(ENABLE_SOCKS)
+            socks_get_headroom(c->c2.link_socket->socks_proxy &&
+                               c->c2.link_socket->info.proto == PROTO_UDPv4) +
+#endif
+            0);
+
+
+    }
+ASSERT(!(flags & CF_INIT_TLS_MULTI) || c->c2.tls_multi != NULL);
 }
 
 static void
@@ -2398,22 +2379,10 @@ do_init_finalize_tls_frame (struct context *c)
 {
   if (c->c2.tls_multi)
     {
-      tls_multi_init_finalize (c->c2.tls_multi, &c->c2.frame);
-#if defined(DONT_PACK_CONTROL_FRAMES)
-      ASSERT (EXPANDED_SIZE (&c->c2.tls_multi->opt.frame) <=
-	      EXPANDED_SIZE (&c->c2.frame));
-      frame_print (&c->c2.tls_multi->opt.frame, D_MTU_INFO,
-		   "Control Channel MTU parms");
-#endif
+      ASSERT (c->c2.tls_multi->opt.frame == NULL);
+      c->c2.tls_multi->opt.frame = &c->c2.frame;
+      tls_multi_init_finalize (c->c2.tls_multi);
     }
-#if defined(DONT_PACK_CONTROL_FRAMES)
-  if (c->c2.tls_auth_standalone)
-    {
-      tls_auth_standalone_finalize (c->c2.tls_auth_standalone, &c->c2.frame);
-      frame_print (&c->c2.tls_auth_standalone->frame, D_MTU_INFO,
-		   "TLS-Auth MTU parms");
-    }
-#endif
 }
 
 #endif /* ENABLE_SSL */
@@ -2457,94 +2426,66 @@ do_init_crypto (struct context *c, const unsigned int flags)
 static void
 do_init_frame (struct context *c)
 {
-#ifdef ENABLE_LZO
-  /*
-   * Initialize LZO compression library.
-   */
-  if (c->options.lzo & LZO_SELECTED)
+
+  if (c->mode == CM_P2P)
     {
-      lzo_adjust_frame_parameters (&c->c2.frame);
-
-      /*
-       * LZO usage affects buffer alignment.
-       */
-      if (CIPHER_ENABLED (c))
-	{
-	  frame_add_to_align_adjust (&c->c2.frame, LZO_PREFIX_LEN);
-	  frame_or_align_flags (&c->c2.frame,
-				FRAME_HEADROOM_MARKER_FRAGMENT
-				|FRAME_HEADROOM_MARKER_DECRYPT);
-	}
-
-#ifdef ENABLE_FRAGMENT
-      lzo_adjust_frame_parameters (&c->c2.frame_fragment_omit);	/* omit LZO frame delta from final frame_fragment */
-#endif
+      /* Init packetization parameters which depend on link info */
+      frame_init_link(&c->c2.frame, c->c2.link_socket->info.proto);
     }
-#endif /* ENABLE_LZO */
-
-#ifdef ENABLE_SOCKS
-  /*
-   * Adjust frame size for UDP Socks support.
-   */
-  if (c->options.ce.socks_proxy_server)
-    socks_adjust_frame_parameters (&c->c2.frame, c->options.ce.proto);
-#endif
 
   /*
    * Adjust frame size based on the --tun-mtu-extra parameter.
    */
+#if defined(FIXME)
   if (c->options.ce.tun_mtu_extra_defined)
     tun_adjust_frame_parameters (&c->c2.frame, c->options.ce.tun_mtu_extra);
+#endif
 
-  /*
-   * Adjust frame size based on link socket parameters.
-   * (Since TCP is a stream protocol, we need to insert
-   * a packet length uint16_t in the buffer.)
-   */
-  socket_adjust_frame_parameters (&c->c2.frame, c->options.ce.proto);
-
-  /*
-   * Fill in the blanks in the frame parameters structure,
-   * make sure values are rational, etc.
-   */
-  frame_finalize_options (c, NULL);
-
-  /* packets with peer-id (P_DATA_V2) need 3 extra bytes in frame (on client)
-   * and need link_mtu+3 bytes on socket reception (on server).
-   *
-   * accomodate receive path in f->extra_link
-   *            send path in f->extra_buffer (+leave room for alignment)
-   *
-   * f->extra_frame is adjusted when peer-id option is push-received
-   */
-  frame_add_to_extra_link(&c->c2.frame, 3);
-  frame_add_to_extra_buffer(&c->c2.frame, 8);
-
+#if defined(ENABLE_CRYPTO)
+  if (c->mode == CM_TOP)
+    frame_init_crypto (&c->c2.frame,
+#ifdef ENABLE_LZO
+        lzo_get_headroom(!!(c->options.lzo & LZO_SELECTED)),
+#endif
 #ifdef ENABLE_FRAGMENT
-  /*
-   * Set frame parameter for fragment code.  This is necessary because
-   * the fragmentation code deals with payloads which have already been
-   * passed through the compression code.
-   */
-  c->c2.frame_fragment = c->c2.frame;
-  frame_subtract_extra (&c->c2.frame_fragment, &c->c2.frame_fragment_omit);
+        fragment_get_headroom(!!c->options.ce.fragment),
+#endif
+        crypto_get_headroom(&c->c1.ks.key_type,
+                             c->options.ciphername_defined,
+                             c->options.use_iv,
+                             c->options.replay,
+                             !!c->c2.crypto_options.flags & CO_PACKET_ID_LONG_FORM),
+        crypto_get_overhead(&c->c1.ks.key_type,
+                             c->options.ciphername_defined,
+                             c->options.use_iv,
+                             c->options.replay,
+                             !!c->c2.crypto_options.flags & CO_PACKET_ID_LONG_FORM),
+        crypto_get_alignment(&c->c1.ks.key_type,
+                             c->options.ciphername_defined)
+    );
 #endif
 
 #if defined(ENABLE_FRAGMENT) && defined(ENABLE_OCC)
   /*
    * MTU advisories
+   * FIXME: Remove this warning, and the mtu_test
+   * use fragment as pmtu ceiling in init call
    */
   if (c->options.ce.fragment && c->options.mtu_test)
     msg (M_WARN,
 	 "WARNING: using --fragment and --mtu-test together may produce an inaccurate MTU test result");
 #endif
 
+#if defined(FIXME)
+  /* Does this warning make sense with RFC4821?
+   */
 #ifdef ENABLE_FRAGMENT
   if ((c->options.ce.mssfix || c->options.ce.fragment)
-      && TUN_MTU_SIZE (&c->c2.frame_fragment) != ETHERNET_MTU)
+      && TUN_MTU_SIZE (&c->c2.XXX_frame_fragment) != ETHERNET_MTU)
     msg (M_WARN,
 	 "WARNING: normally if you use --mssfix and/or --fragment, you should also set --tun-mtu %d (currently it is %d)",
-	 ETHERNET_MTU, TUN_MTU_SIZE (&c->c2.frame_fragment));
+	 ETHERNET_MTU, TUN_MTU_SIZE (&c->c2.XXX_frame_fragment));
+#endif
 #endif
 }
 
@@ -2649,19 +2590,25 @@ init_context_buffers (const struct frame *frame)
 
   ALLOC_OBJ_CLEAR (b, struct context_buffers);
 
-  b->read_link_buf = alloc_buf (BUF_SIZE (frame));
-  b->read_tun_buf = alloc_buf (BUF_SIZE (frame));
+  /* FIXME: These need to resizeable, new size auto-detected on read()
+   */
+  b->read_link_buf = alloc_buf (LINK_RECV_BUFSIZE_STARTUP(frame));
+  b->read_tun_buf = alloc_buf (ENCRYPTION_BUFSIZE (frame, TUN_RECV_BUFSIZE_STARTUP));
 
-  b->aux_buf = alloc_buf (BUF_SIZE (frame));
+  b->aux_buf = alloc_buf (LINK_AUX_BUFSIZE (frame));
 
 #ifdef ENABLE_CRYPTO
-  b->encrypt_buf = alloc_buf (BUF_SIZE (frame));
-  b->decrypt_buf = alloc_buf (BUF_SIZE (frame));
+  /* FIXME: This needs to be grown when PMTU is discovered,
+   * and also when link receives a larger datagram than LINK_RECV_BUFSIZE_STARTUP
+   * then also the link
+   */
+  b->encrypt_buf = alloc_buf (BCAP(&b->read_tun_buf));
+  b->decrypt_buf = alloc_buf (DECRYPTION_BUFSIZE (frame, BCAP(&b->read_link_buf)));
 #endif
 
 #ifdef ENABLE_LZO
-  b->lzo_compress_buf = alloc_buf (BUF_SIZE (frame));
-  b->lzo_decompress_buf = alloc_buf (BUF_SIZE (frame));
+  b->lzo_compress_buf = alloc_buf (LZO_COMPRESSION_BUFSIZE(frame, BCAP(&b->read_tun_buf)));
+  b->lzo_decompress_buf = alloc_buf (LZO_DECOMPRESSION_BUFSIZE(frame, BCAP(&b->read_link_buf)));
 #endif
 
   return b;
@@ -2710,24 +2657,10 @@ static void
 do_init_fragment (struct context *c)
 {
   ASSERT (c->options.ce.fragment);
-  frame_set_mtu_dynamic (&c->c2.frame_fragment,
-			 c->options.ce.fragment, SET_MTU_UPPER_BOUND);
-  fragment_frame_init (c->c2.fragment, &c->c2.frame_fragment);
+
+  fragment_frame_init (c->c2.fragment, &c->c2.frame);
 }
 #endif
-
-/*
- * Set the --mssfix option.
- */
-static void
-do_init_mssfix (struct context *c)
-{
-  if (c->options.ce.mssfix)
-    {
-      frame_set_mtu_dynamic (&c->c2.frame,
-			     c->options.ce.mssfix, SET_MTU_UPPER_BOUND);
-    }
-}
 
 /*
  * Allocate our socket object.
@@ -2781,7 +2714,6 @@ do_init_socket_1 (struct context *c, const int mode)
 			   c->options.ce.connect_retry_seconds,
 			   c->options.ce.connect_timeout,
 			   c->options.ce.connect_retry_max,
-			   c->options.ce.mtu_discover_type,
 			   c->options.rcvbuf,
 			   c->options.sndbuf,
 			   c->options.mark,
@@ -2805,11 +2737,6 @@ static void
 do_print_data_channel_mtu_parms (struct context *c)
 {
   frame_print (&c->c2.frame, D_MTU_INFO, "Data Channel MTU parms");
-#ifdef ENABLE_FRAGMENT
-  if (c->c2.fragment)
-    frame_print (&c->c2.frame_fragment, D_MTU_INFO,
-		 "Fragmentation MTU parms");
-#endif
 }
 
 #ifdef ENABLE_OCC
@@ -2822,9 +2749,9 @@ do_compute_occ_strings (struct context *c)
   struct gc_arena gc = gc_new ();
 
   c->c2.options_string_local =
-    options_string (&c->options, &c->c2.frame, c->c1.tuntap, false, &gc);
+    options_string (&c->options, &c->c2.bugfixes, &c->c2.frame, c->c1.tuntap, false, &gc);
   c->c2.options_string_remote =
-    options_string (&c->options, &c->c2.frame, c->c1.tuntap, true, &gc);
+    options_string (&c->options, &c->c2.bugfixes, &c->c2.frame, c->c1.tuntap, true, &gc);
 
   msg (D_SHOW_OCC, "Local Options String: '%s'", c->c2.options_string_local);
   msg (D_SHOW_OCC, "Expected Remote Options String: '%s'",
@@ -3372,6 +3299,21 @@ init_instance_handle_signals (struct context *c, const struct env_set *env, cons
     }
 }
 
+/* Initialize tunnel's frame related structure (tls/reliable buffers)
+ */
+void init_instance_mtu_related (struct context *c)
+{
+
+  /* initialize TLS MTU variables */
+  do_init_frame_tls (c);
+
+  /* init workspace buffers whose size is derived from frame size */
+  if (c->mode == CM_P2P || c->mode == CM_CHILD_TCP)
+    do_init_buffers (c);
+
+  /* print MTU info XXX */
+  do_print_data_channel_mtu_parms (c);
+}
 /*
  * Initialize a tunnel instance.
  */
@@ -3381,9 +3323,6 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
   const struct options *options = &c->options;
   const bool child = (c->mode == CM_CHILD_TCP || c->mode == CM_CHILD_UDP);
   int link_socket_mode = LS_MODE_DEFAULT;
-
-  /* Bug Maintenance */
-  c->c2.has_bugfixes_v2 = 0 BUGFIXES_V2(DEFINE_BITMAP);
 
   /* init garbage collection level */
   gc_init (&c->c2.gc);
@@ -3526,9 +3465,6 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
     do_init_fragment (c);
 #endif
 
-  /* initialize dynamic MTU variable */
-  do_init_mssfix (c);
-
   /* bind the TCP/UDP socket */
   if (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_CHILD_TCP)
     do_init_socket_1 (c, link_socket_mode);
@@ -3537,15 +3473,6 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
      open tun/tap device, ifconfig, run up script, etc. */
   if (!(options->up_delay || PULL_DEFINED (options)) && (c->mode == CM_P2P || c->mode == CM_TOP))
     c->c2.did_open_tun = do_open_tun (c);
-
-  /* print MTU info */
-  do_print_data_channel_mtu_parms (c);
-
-#ifdef ENABLE_OCC
-  /* get local and remote options compatibility strings */
-  if (c->mode == CM_P2P || child)
-    do_compute_occ_strings (c);
-#endif
 
   /* initialize output speed limiter */
   if (c->mode == CM_P2P)
@@ -3565,10 +3492,44 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
    * May be delayed by --client, --pull, or --up-delay.
    */
   do_uid_gid_chroot (c, c->c2.did_open_tun);
-
+  
   /* finalize the TCP/UDP socket */
   if (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_CHILD_TCP)
     do_init_socket_2 (c);
+
+  if (c->mode == CM_P2P)
+    {
+#if defined(FIXME)
+      frame_init_crypto (&c->c2.frame,
+#ifdef ENABLE_LZO
+          lzo_get_headroom(!!(c->options.lzo & LZO_SELECTED)),
+#endif
+#ifdef ENABLE_LZO
+          fragment_get_headroom(!!c->options.ce.fragment),
+#endif
+                         
+          crypto_get_headroom(&c->c1.ks.key_type,
+                               c->options.ciphername_defined,
+                               c->options.use_iv),
+          crypto_get_overhead(&c->c1.ks.key_type,
+                               c->options.ciphername_defined,
+                               c->options.use_iv,
+                               c->options.replay,
+                               !!c->c2.crypto_options.flags & CO_PACKET_ID_LONG_FORM),
+          crypto_get_alignment(&c->c1.ks.key_type,
+                               c->options.ciphername_defined)
+      );
+  /* Init packetization parameters which depend on link info */
+  frame_init_link(&c->c2.frame, c->c2.link_socket->info.proto);
+#endif
+
+    }
+
+#ifdef ENABLE_OCC
+  /* get local and remote options compatibility strings */
+  if (c->mode == CM_P2P || child)
+    do_compute_occ_strings (c);
+#endif
 
   /* initialize timers */
   if (c->mode == CM_P2P || child)
@@ -3723,6 +3684,9 @@ inherit_context_child (struct context *dest,
   do_inherit_plugins (dest, src);
 #endif
 
+  if (dest->mode == CM_CHILD_UDP)
+    frame_init_link(&dest->c2.frame, src->c2.link_socket->info.proto);
+
   /* context init */
   init_instance (dest, src->c2.es, CC_NO_CLOSE | CC_USR1_TO_HUP);
   if (IS_SIG (dest))
@@ -3746,6 +3710,30 @@ inherit_context_child (struct context *dest,
       /* locally override some link_socket_info fields */
       dest->c2.link_socket_info->lsa = &dest->c1.link_socket_addr;
       dest->c2.link_socket_info->connection_established = false;
+#if defined(FIXME)
+      frame_init_crypto (&dest->c2.frame,
+#ifdef ENABLE_LZO
+         lzo_get_headroom(!!(dest->options.lzo & LZO_SELECTED)),
+#endif
+#ifdef ENABLE_FRAGMENT
+         fragment_get_headroom(!!dest->options.ce.fragment),
+#endif
+         crypto_get_headroom(&dest->c1.ks.key_type,
+                              dest->options.ciphername_defined,
+                              dest->options.use_iv),
+         crypto_get_overhead(&dest->c1.ks.key_type,
+                              dest->options.ciphername_defined,
+                              dest->options.use_iv,
+                              dest->options.replay,
+                              !!dest->c2.crypto_options.flags & CO_PACKET_ID_LONG_FORM),
+         crypto_get_alignment(&dest->c1.ks.key_type,
+                              dest->options.ciphername_defined)
+        );
+      frame_init_link(&dest->c2.frame, dest->c2.link_socket_info->proto);
+
+      init_instance_mtu_related (dest);
+#endif                      
+
     }
 }
 
@@ -3837,7 +3825,26 @@ test_crypto_thread (void *arg)
   context_init_1 (c);
   do_init_crypto_static (c, 0);
 
-  frame_finalize_options (c, options);
+  frame_init_crypto (&c->c2.frame,
+#ifdef ENABLE_LZO
+      lzo_get_headroom(!!(c->options.lzo & LZO_SELECTED)),
+#endif
+#ifdef ENABLE_FRAGMENT
+      fragment_get_headroom(!!c->options.ce.fragment),
+#endif
+      crypto_get_headroom(&c->c1.ks.key_type,
+                           c->options.ciphername_defined,
+                           c->options.use_iv,
+                           c->options.replay,
+                           !!c->c2.crypto_options.flags & CO_PACKET_ID_LONG_FORM),
+      crypto_get_overhead(&c->c1.ks.key_type,
+                           c->options.ciphername_defined,
+                           c->options.use_iv,
+                           c->options.replay,
+                           !!c->c2.crypto_options.flags & CO_PACKET_ID_LONG_FORM),
+      crypto_get_alignment(&c->c1.ks.key_type,
+                           c->options.ciphername_defined)
+  );
 
   test_crypto (&c->c2.crypto_options, &c->c2.frame);
 

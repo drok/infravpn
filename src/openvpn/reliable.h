@@ -39,6 +39,7 @@
 #include "packet_id.h"
 #include "session_id.h"
 #include "mtu.h"
+#include "rfc4821.h"
 
 /** @addtogroup reliable
  *  @{ */
@@ -80,9 +81,15 @@ struct rec_reliable_entry
 
 struct send_reliable_entry
 {
-  bool active;
+  enum {
+    REL_INACTIVE = 0,      /* never been sent */
+    REL_ACKED,             /* previously sent and acked */
+    REL_ACTIVE,            /* real packet in flight */
+    REL_PMTUD_PROBE,       /* probe packet in flight */
+  } active;
   interval_t timeout;
   time_t next_try;
+  struct timeval sent_time;
   packet_id_type packet_id;
   int opcode;
   struct buffer buf;
@@ -98,7 +105,28 @@ struct send_reliable
   interval_t initial_timeout;
   packet_id_type packet_id;
   int offset;
+  interval_t rtt;
   struct send_reliable_entry array[RELIABLE_N_SEND_BUFFERS];
+
+  /* Packetization Layer Path MTU discovery state */
+  /* FIXME: This does not belong here, but in the client's c2 context
+   * maybe inside c2.frame, but there are 2 sets of reliable buffers, one for
+   * each keystate[0,1]
+   * That also seems wrong, as there should be one packet_id sequence, regardless
+   * which keystate is active, thus one set of reliable buffers.
+   * Maybe the reliable structure should also live in c2.
+   * When the PMTU is updated, the buffers in the send_reliable need to be
+   * reallocated. Not just the active send_reliable set, but both sets??
+   * What happens the active keyset changes, and say, packets arrived in the order
+   * 
+   * pid=10[key1], pid=12[key2], pid=11[key1] ... are they handled in the correct order?
+   * ie, pids 10, 11, 12 with keys 1, 1, 2 respectively? If yes, and they should,
+   * then there should be one reliable struct under the context, not under the
+   * keyset.
+   * 
+   * Path MTU discovery should not need to be redone when keys get renegotiated.
+   */
+  struct plpmtud pmtud_state;
 };
 
 struct rec_reliable
@@ -139,7 +167,23 @@ bool reliable_ack_read (struct reliable_ack *ack,
  * @param ack The acknowledgment structure containing received
  *     acknowledgments.
  */
-void reliable_send_purge (struct send_reliable *rel, struct reliable_ack *ack);
+void reliable_send_purge (struct send_reliable *rel, struct reliable_ack *ack,
+                         struct frame *frame);
+
+/**
+ * Remove lost packets from a reliable structure. Used for PMTU discovery.
+ * Assumes that only PMTU probes will be lost.
+ *
+ * @param rel The reliable structure storing sent packets.
+ * @param buf The buffer that was lost
+ * @param frame The MTU frame parameters associated with this reliable struct
+ *
+ * @return true if discovery is finished.
+ */
+bool
+reliable_send_lost (struct send_reliable *rel,
+                    struct buffer *buf,
+                    struct frame *frame);
 
 /** @} name Functions for processing incoming acknowledgments */
 
@@ -227,11 +271,11 @@ void reliable_send_free (struct send_reliable *rel);
  */
 void reliable_rec_free (struct rec_reliable *rel);
 
-/* add to extra_frame the maximum number of bytes we will need for reliable_ack_write */
-void reliable_ack_adjust_frame_parameters (struct frame* frame, int max);
-
 /* How many bytes will it take to transmit n acks in one frame? */
 int reliable_ack_get_frame_extra (int n_acks);
+
+/* Change the buffer size */
+void reliable_realloc (struct send_reliable *rel, int buf_size);
 
 /** @} name Functions for initialization and cleanup */
 
@@ -313,19 +357,6 @@ bool reliable_ack_read_packet_id (struct buffer *buf, packet_id_type *pid);
  *     function returns NULL.
  */
 struct buffer *reliable_get_rec_buf (struct rec_reliable *rel);
-
-/**
- * Get the buffer of a free %reliable entry in which to store a
- *     outgoing packet.
- *
- * @param rel The reliable structure in which to search for a free
- *     entry.
- *
- * @return A pointer to a buffer of a free entry in the \a rel
- *     reliable structure.  If there are no free entries available, this
- *     function returns NULL.
- */
-struct buffer *reliable_get_send_buf (struct send_reliable *rel);
 
 /**
  * Mark the %reliable entry associated with the given buffer as active
@@ -414,10 +445,22 @@ struct buffer *reliable_get_buf_output_sequenced (struct send_reliable *rel);
  *     reliable_get_buf_output_sequenced() into which the packet has been
  *     copied.
  * @param opcode The packet's opcode.
+ * @param activation Whether this packet will be a regular control packet
+ *              (REL_ACTIVE) or an MTU probe packet (REL_PMTUD_PROBE)
+ * @param overhead The amount of packetization overhead bytes: TUN_LINK_DELTA(frame)
+ * @return true if the packet was successfully marked, false if not marked.
  */
-void reliable_mark_active_outgoing (struct send_reliable *rel, struct buffer *buf, int opcode);
+bool reliable_mark_active_outgoing (struct send_reliable *rel,
+                                    struct buffer *buf,
+                                    int opcode,
+                                    int activation,
+                                    int overhead);
 
 /** @} name Functions for inserting outgoing packets */
+
+
+
+
 
 
 /**************************************************************************/
@@ -427,8 +470,10 @@ void reliable_mark_active_outgoing (struct send_reliable *rel, struct buffer *bu
 /**
  * Check whether a reliable structure has any active entries
  *     ready to be (re)sent.
+ * Also handles expired PMTU probes.
  *
  * @param rel The reliable structure to check.
+ * @param frame MTU parameters associated with this link.
  *
  * @return
  * @li True, if there are active entries ready to be (re)sent
@@ -436,7 +481,7 @@ void reliable_mark_active_outgoing (struct send_reliable *rel, struct buffer *bu
  * @li False, if there are no active entries, or the active entries
  *     are not yet ready for resending.
  */
-bool reliable_can_send (const struct send_reliable *rel);
+bool reliable_can_send (struct send_reliable *rel, struct frame *frame);
 
 /**
  * Get the next packet to send to the remote peer.
@@ -449,6 +494,7 @@ bool reliable_can_send (const struct send_reliable *rel);
  * @param rel The reliable structure to check.
  * @param opcode A pointer to an integer in which this function will
  *     store the opcode of the next packet to be sent.
+ * @param pmtud Path MTU discovery state
  *
  * @return A pointer to the buffer of the next entry to be sent, or
  *     NULL if there are no entries ready for (re)sending present in the
@@ -457,8 +503,26 @@ bool reliable_can_send (const struct send_reliable *rel);
  */
 struct buffer *reliable_send (struct send_reliable *rel, int *opcode);
 
-/** @} name Functions for extracting outgoing packets */
 
+/**
+ * Resequence packets that have already be sent, and re-queue them to be resent
+ * 
+ * This is needed to support the link params negotiation in the initial
+ * HARD_RESET, where the pid field (and start of sequence), is used to pass
+ * an arbitrary parameter ("my receive buffer size"). Old servers do not accept
+ * a HARD_RESET with a pid other than 0 so they don't ACK the reset with link
+ * parameters. They respond with their own HARD_RESET pid=0, so a new client
+ * must play along and revert to expected behaviour (HARD_RESET pid=0)
+ * 
+ * In reality, only one packet is in the reliable structure at the point this
+ * function is called: the initial HARD_RESET with non-zero pid.
+ * 
+ * @param rel       The reliable structure to resequence
+ * @param offset    The offset to be added to each packet
+ */
+void reliable_renumber (struct send_reliable *rel, int offset);
+
+/** @} name Functions for extracting outgoing packets */
 
 /**************************************************************************/
 /** @name Miscellaneous functions

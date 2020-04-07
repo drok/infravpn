@@ -667,6 +667,23 @@ create_socket_udp (const unsigned int flags)
 #endif
     }
 #endif
+
+  if (sd != -1)
+    { /* Setup path MTU discovery */
+      /* Request IP fragmentation by default. Path MTU discovery will
+       * lower or raise the transmit unit size per peer in order to avoid
+       * the need for fragmentation.
+       * When the network topology changes, lowering the Path MTU, traffic
+       * will be fragmented as needed until the next time Path MTU discovery
+       * runs (every 10 minutes). If the Path MTU increases, discovery will
+       * detect it and increase the transmit buffer sizes.
+       */
+      ssize_t mtudisc = IP_PMTUDISC_DONT;
+      if (setsockopt(sd, IPPROTO_IP, IP_MTU_DISCOVER, &mtudisc,
+                       sizeof(mtudisc)))
+        msg (M_WARN, "UDP: Failed to set default MTU discovery to DONT");
+    }
+
   return sd;
 }
 
@@ -1114,8 +1131,7 @@ socket_frame_init (const struct frame *frame, struct link_socket *sock)
 #else
       alloc_buf_sock_tun (&sock->stream_buf_data,
 			  frame,
-			  false,
-			  FRAME_HEADROOM_MARKER_READ_STREAM);
+			  false);
 
       stream_buf_init (&sock->stream_buf,
 		       &sock->stream_buf_data,
@@ -1123,16 +1139,6 @@ socket_frame_init (const struct frame *frame, struct link_socket *sock)
 		       sock->info.proto);
 #endif
     }
-}
-
-/*
- * Adjust frame structure based on a Path MTU value given
- * to us by the OS.
- */
-void
-frame_adjust_path_mtu (struct frame *frame, int pmtu, int proto)
-{
-  frame_set_mtu_dynamic (frame, pmtu - datagram_overhead (proto), SET_MTU_UPPER_BOUND);
 }
 
 static void
@@ -1379,7 +1385,6 @@ link_socket_init_phase1 (struct link_socket *sock,
 			 int connect_retry_seconds,
 			 int connect_timeout,
 			 int connect_retry_max,
-			 int mtu_discover_type,
 			 int rcvbuf,
 			 int sndbuf,
 			 int mark,
@@ -1408,7 +1413,6 @@ link_socket_init_phase1 (struct link_socket *sock,
   sock->connect_retry_seconds = connect_retry_seconds;
   sock->connect_timeout = connect_timeout;
   sock->connect_retry_max = connect_retry_max;
-  sock->mtu_discover_type = mtu_discover_type;
 
 #ifdef ENABLE_DEBUG
   sock->gremlin = gremlin;
@@ -1745,9 +1749,6 @@ link_socket_init_phase2 (struct link_socket *sock,
     set_cloexec (sock->ctrl_sd);
 #endif
 
-  /* set Path MTU discovery options on the socket */
-  set_mtu_discover_type (sock->sd, sock->mtu_discover_type);
-
 #if EXTENDED_SOCKET_ERROR_CAPABILITY
   /* if the OS supports it, enable extended error passing on the socket */
   set_sock_extended_error_passing (sock->sd);
@@ -1829,14 +1830,6 @@ link_socket_close (struct link_socket *sock)
       if (!gremlin)
 	free (sock);
     }
-}
-
-/* for stream protocols, allow for packet length prefix */
-void
-socket_adjust_frame_parameters (struct frame *frame, int proto)
-{
-  if (link_socket_proto_connection_oriented (proto))
-    frame_add_to_extra_frame (frame, sizeof (packet_size_type));
 }
 
 void
@@ -2752,7 +2745,7 @@ link_socket_read_udp_posix_recvmsg (struct link_socket *sock,
 }
 #endif
 
-int
+ssize_t
 link_socket_read_udp_posix (struct link_socket *sock,
 			    struct buffer *buf,
 			    struct link_socket_actual *from)
@@ -2779,7 +2772,7 @@ link_socket_read_udp_posix (struct link_socket *sock,
  * Socket Write Routines
  */
 
-int
+ssize_t
 link_socket_write_tcp (struct link_socket *sock,
 		       struct buffer *buf,
 		       struct link_socket_actual *to)
@@ -2787,6 +2780,7 @@ link_socket_write_tcp (struct link_socket *sock,
   packet_size_type len = BLEN (buf);
   dmsg (D_STREAM_DEBUG, "STREAM: WRITE %d offset=%d", (int)len, buf->offset);
   ASSERT (len <= sock->stream_buf.maxlen);
+  ASSERT (buf->ip_pmtudisc == BUF_PMTUDISC_DONT);
   len = htonps (len);
   ASSERT (buf_write_prepend (buf, &len, sizeof (len)));
 #ifdef WIN32

@@ -99,14 +99,17 @@ lzo_adaptive_compress_data (struct lzo_adaptive_compress *ac, int n_total, int n
 
 #endif /* ENABLE_LZO_STUB */
 
-void lzo_adjust_frame_parameters (struct frame *frame)
+size_t
+lzo_get_headroom(bool config)
 {
-  /* Leave room for our one-byte compressed/didn't-compress prefix byte. */
-  frame_add_to_extra_frame (frame, LZO_PREFIX_LEN);
+  return config ? LZO_PREFIX_LEN : 0;
+}
 
-  /* Leave room for compression buffer to expand in worst case scenario
-     where data is totally uncompressible */
-  frame_add_to_extra_buffer (frame, LZO_EXTRA_BUFFER (EXPANDED_SIZE(frame)));
+size_t
+lzo_get_overhead(bool config, size_t datalen)
+{
+  (void) sizeof(datalen);
+  return lzo_get_headroom(config);
 }
 
 void
@@ -181,15 +184,10 @@ lzo_compress (struct buffer *buf, struct buffer work,
    */
   if (buf->len >= COMPRESS_THRESHOLD && lzo_compression_enabled (lzowork))
     {
-      ASSERT (buf_init (&work, FRAME_HEADROOM (frame)));
-      ASSERT (buf_safe (&work, LZO_EXTRA_BUFFER (PAYLOAD_SIZE (frame))));
-
-      if (!(buf->len <= PAYLOAD_SIZE (frame)))
-	{
-	  dmsg (D_COMP_ERRORS, "LZO compression buffer overflow");
-	  buf->len = 0;
-	  return;
-	}
+      ASSERT (buf_init (&work, LZO_PREFIX_LEN));
+      ASSERT (buf_safe (&work, LZO_EXTRA_BUFFER (BLEN(buf))));
+      ASSERT (BCAP(&work) == LZO_EXTRA_BUFFER (BLEN(buf)) &&
+              "LZO compression work buffer is precisely sized");
 
       err = LZO_COMPRESS (BPTR (buf), BLEN (buf), BPTR (&work), &zlen, lzowork->wmem);
       if (err != LZO_E_OK)
@@ -215,14 +213,14 @@ lzo_compress (struct buffer *buf, struct buffer work,
   /* did compression save us anything ? */
   if (compressed && work.len < buf->len)
     {
-      uint8_t *header = buf_prepend (&work, 1);
+      uint8_t *header = buf_prepend (&work, LZO_PREFIX_LEN);
       *header = YES_COMPRESS;
       *buf = work;
     }
   else
 #endif
     {
-      uint8_t *header = buf_prepend (buf, 1);
+      uint8_t *header = buf_prepend (buf, LZO_PREFIX_LEN);
       *header = NO_COMPRESS;
     }
 }
@@ -233,7 +231,7 @@ lzo_decompress (struct buffer *buf, struct buffer work,
 		const struct frame* frame)
 {
 #ifndef ENABLE_LZO_STUB
-  lzo_uint zlen = EXPANDED_SIZE (frame);
+  lzo_uint zlen = BCAP(&work);
   int err;
 #endif
   uint8_t c;		/* flag indicating whether or not our peer compressed */
@@ -243,7 +241,7 @@ lzo_decompress (struct buffer *buf, struct buffer work,
   if (buf->len <= 0)
     return;
 
-  ASSERT (buf_init (&work, FRAME_HEADROOM (frame)));
+  ASSERT (buf_init (&work, 0));
 
   c = *BPTR (buf);
   ASSERT (buf_advance (buf, 1));

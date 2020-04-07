@@ -32,7 +32,6 @@
 
 #include "buffer.h"
 #include "error.h"
-#include "mtu.h"
 #include "win32.h"
 #include "event.h"
 #include "proto.h"
@@ -187,9 +186,11 @@ struct tuntap
   /* used for printing status info only */
   unsigned int rwflags_debug;
 
+#ifdef WIN32
   /* Some TUN/TAP drivers like to be ioctled for mtu
      after open */
   int post_open_mtu;
+#endif
 };
 
 static inline bool
@@ -237,6 +238,7 @@ struct tuntap *init_tun (const char *dev,       /* --dev option */
 			 const bool strict_warn,
 			 struct env_set *es);
 
+struct frame;
 void init_tun_post (struct tuntap *tt,
 		    const struct frame *frame,
 		    const struct tuntap_options *options);
@@ -262,16 +264,6 @@ void check_subnet_conflict (const in_addr_t ip,
 			    const char *prefix);
 
 void warn_on_use_of_common_subnets (void);
-
-/*
- * Inline functions
- */
-
-static inline void
-tun_adjust_frame_parameters (struct frame* frame, int size)
-{
-  frame_add_to_extra_tun (frame, size);
-}
 
 /*
  * Should ifconfig be called before or after

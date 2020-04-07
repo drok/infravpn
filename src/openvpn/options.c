@@ -274,17 +274,12 @@ static const char usage_message[] =
 #if PASSTOS_CAPABILITY
   "--passtos       : TOS passthrough (applies to IPv4 only).\n"
 #endif
-  "--tun-mtu n     : Take the tun/tap device MTU to be n and derive the\n"
-  "                  TCP/UDP MTU from it (default=%d).\n"
+  "--tun-mtu n     : MTU for the tun/tap interface (default=%d)\n"
   "--tun-mtu-extra n : Assume that tun/tap device might return as many\n"
   "                  as n bytes more than the tun-mtu size on read\n"
   "                  (default TUN=0 TAP=%d).\n"
   "--link-mtu n    : Take the TCP/UDP device MTU to be n and derive the tun MTU\n"
   "                  from it.\n"
-  "--mtu-disc type : Should we do Path MTU discovery on TCP/UDP channel?\n"
-  "                  'no'    -- Never send DF (Don't Fragment) frames\n"
-  "                  'maybe' -- Use per-route hints\n"
-  "                  'yes'   -- Always DF (Don't Fragment)\n"
 #ifdef ENABLE_OCC
   "--mtu-test      : Empirically measure and report MTU.\n"
 #endif
@@ -293,9 +288,11 @@ static const char usage_message[] =
   "                  datagrams are sent which are larger than max bytes.\n"
   "                  Adds 4 bytes of overhead per datagram.\n"
 #endif
+#if !defined(FIXME) || !defined(WORKAROUND_UNRELIABLE_RELIABLE)
   "--mssfix [n]    : Set upper bound on TCP MSS, default = tun-mtu size\n"
   "                  or --fragment max value, whichever is lower.\n"
-  "--sndbuf size   : Set the TCP/UDP send buffer size.\n"
+#endif
+"--sndbuf size   : Set the TCP/UDP send buffer size.\n"
   "--rcvbuf size   : Set the TCP/UDP receive buffer size.\n"
 #if defined(TARGET_LINUX) && HAVE_DECL_SO_MARK
   "--mark value    : Mark encrypted packets being sent with value. The mark value\n"
@@ -789,7 +786,6 @@ init_options (struct options *o, const bool init_gc)
   o->ce.bind_local = true;
   o->ce.tun_mtu = TUN_MTU_DEFAULT;
   o->ce.link_mtu = LINK_MTU_DEFAULT;
-  o->ce.mtu_discover_type = -1;
   o->ce.mssfix = MSSFIX_DEFAULT;
   o->route_delay_window = 30;
   o->max_routes = MAX_ROUTES_DEFAULT;
@@ -1386,10 +1382,8 @@ show_connection_entry (const struct connection_entry *o)
   SHOW_BOOL (tun_mtu_defined);
   SHOW_INT (link_mtu);
   SHOW_BOOL (link_mtu_defined);
-  SHOW_INT (tun_mtu_extra);
-  SHOW_BOOL (tun_mtu_extra_defined);
-
-  SHOW_INT (mtu_discover_type);
+  SHOW_INT (UNUSED_tun_mtu_extra);
+  SHOW_BOOL (UNUSED_tun_mtu_extra_defined);
 
 #ifdef ENABLE_FRAGMENT
   SHOW_INT (fragment);
@@ -1902,12 +1896,6 @@ options_postprocess_verify_ce (const struct options *options, const struct conne
       && ce->proto != PROTO_TCPv6_CLIENT)
     msg (M_USAGE, "--connect-timeout doesn't make sense unless also used with "
 	 "--proto tcp-client or tcp6-client");
-
-  /*
-   * Sanity check on MTU parameters
-   */
-  if (options->ce.tun_mtu_defined && options->ce.link_mtu_defined)
-    msg (M_USAGE, "only one of --tun-mtu or --link-mtu may be defined (note that --ifconfig implies --link-mtu %d)", LINK_MTU_DEFAULT);
 
 #ifdef ENABLE_OCC
   if (!proto_is_udp(ce->proto) && options->mtu_test)
@@ -2437,14 +2425,14 @@ options_postprocess_mutate_ce (struct options *o, struct connection_entry *ce)
    * Set MTU defaults
    */
   {
-    if (!ce->tun_mtu_defined && !ce->link_mtu_defined)
+    if (!ce->tun_mtu_defined)
       {
-	ce->tun_mtu_defined = true;
+        ce->tun_mtu = TUN_MTU_DEFAULT;
       }
-    if ((dev == DEV_TYPE_TAP) && !ce->tun_mtu_extra_defined)
+    if ((dev == DEV_TYPE_TAP) && !ce->UNUSED_tun_mtu_extra_defined)
       {
-	ce->tun_mtu_extra_defined = true;
-	ce->tun_mtu_extra = TAP_MTU_EXTRA_DEFAULT;
+	ce->UNUSED_tun_mtu_extra_defined = true;
+	ce->UNUSED_tun_mtu_extra = TAP_MTU_EXTRA_DEFAULT;
       }
   }
 
@@ -2950,14 +2938,16 @@ pre_pull_restore (struct options *o)
  *
  * --dev tun|tap [unit number need not match]
  * --dev-type tun|tap
- * --link-mtu
+ * --link-mtu (deprecated, UNRELIABLE_RELIABLE_V2)
  * --udp-mtu
- * --tun-mtu
- * --proto udp
+ * --tun-mtu (deprecated, UNRELIABLE_RELIABLE_V2)
+ * --proto udp (deprecated, UNRELIABLE_RELIABLE_V2)
  * --proto tcp-client [matched with --proto tcp-server
  *                     on the other end of the connection]
+ *                    (deprecated, UNRELIABLE_RELIABLE_V2)
  * --proto tcp-server [matched with --proto tcp-client on
  *                     the other end of the connection]
+ *                    (deprecated, UNRELIABLE_RELIABLE_V2)
  * --tun-ipv6
  * --ifconfig x y [matched with --ifconfig y x on
  *                 the other end of the connection]
@@ -2985,6 +2975,7 @@ pre_pull_restore (struct options *o)
 
 char *
 options_string (const struct options *o,
+                const struct quirks *bugfixes,
 		const struct frame *frame,
 		struct tuntap *tt,
 		bool remote,
@@ -3000,9 +2991,15 @@ options_string (const struct options *o,
    */
 
   buf_printf (&out, ",dev-type %s", dev_type_string (o->dev, o->dev_type));
-  buf_printf (&out, ",link-mtu %d", EXPANDED_SIZE (frame));
-  buf_printf (&out, ",tun-mtu %d", PAYLOAD_SIZE (frame));
-  buf_printf (&out, ",proto %s", proto2ascii (proto_remote (o->ce.proto, remote), true));
+
+#if defined (UNRELIABLE_RELIABLE_V2)
+  WORKAROUND(bugfixes, UNRELIABLE_RELIABLE)
+    {
+      buf_printf (&out, ",link-mtu %d", frame_get_link_pmtu (frame));
+      buf_printf (&out, ",tun-mtu %d", frame_get_data_comp_payload_room (frame));
+      buf_printf (&out, ",proto %s", proto2ascii (proto_remote (o->ce.proto, remote), true));
+    }
+#endif
 
   /* send tun_ipv6 only in peer2peer mode - in client/server mode, it
    * is usually pushed by the server, triggering a non-helpful warning
@@ -4965,8 +4962,8 @@ add_option (struct options *options,
   else if (streq (p[0], "tun-mtu-extra") && p[1])
     {
       VERIFY_PERMISSION (OPT_P_MTU|OPT_P_CONNECTION);
-      options->ce.tun_mtu_extra = positive_atoi (p[1]);
-      options->ce.tun_mtu_extra_defined = true;
+      options->ce.UNUSED_tun_mtu_extra = positive_atoi (p[1]);
+      options->ce.UNUSED_tun_mtu_extra_defined = true;
     }
 #ifdef ENABLE_FRAGMENT
   else if (streq (p[0], "mtu-dynamic"))
@@ -4985,7 +4982,7 @@ add_option (struct options *options,
   else if (streq (p[0], "mtu-disc") && p[1])
     {
       VERIFY_PERMISSION (OPT_P_MTU|OPT_P_CONNECTION);
-      options->ce.mtu_discover_type = translate_mtu_discover_type_name (p[1]);
+      msg (msglevel, "--mtu-disc is ignored (obsolete)");
     }
 #ifdef ENABLE_OCC
   else if (streq (p[0], "mtu-test"))

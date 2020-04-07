@@ -104,9 +104,7 @@ struct link_socket_info
   const struct plugin_list *plugins;
   bool remote_float;  
   int proto;                    /* Protocol (PROTO_x defined below) */
-#if EXTENDED_SOCKET_ERROR_CAPABILITY
   int mtu_changed;              /* Set to true when mtu value is changed */
-#endif
 };
 
 /*
@@ -194,7 +192,6 @@ struct link_socket
   int connect_retry_seconds;
   int connect_timeout;
   int connect_retry_max;
-  int mtu_discover_type;
 
   struct socket_buffer_size socket_buffer_sizes;
 
@@ -320,19 +317,15 @@ link_socket_init_phase1 (struct link_socket *sock,
 			 int connect_retry_seconds,
 			 int connect_timeout,
 			 int connect_retry_max,
-			 int mtu_discover_type,
 			 int rcvbuf,
 			 int sndbuf,
 			 int mark,
 			 unsigned int sockflags);
 
+struct frame;
 void link_socket_init_phase2 (struct link_socket *sock,
 			      const struct frame *frame,
 			      volatile int *signal_received);
-
-void socket_adjust_frame_parameters (struct frame *frame, int proto);
-
-void frame_adjust_path_mtu (struct frame *frame, int pmtu, int proto);
 
 void link_socket_close (struct link_socket *sock);
 
@@ -864,14 +857,14 @@ link_socket_read_udp_win32 (struct link_socket *sock,
 
 #else
 
-int link_socket_read_udp_posix (struct link_socket *sock,
+ssize_t link_socket_read_udp_posix (struct link_socket *sock,
 				struct buffer *buf,
 				struct link_socket_actual *from);
 
 #endif
 
 /* read a TCP or UDP packet from link */
-static inline int
+static inline ssize_t
 link_socket_read (struct link_socket *sock,
 		  struct buffer *buf,
 		  struct link_socket_actual *from)
@@ -904,7 +897,7 @@ link_socket_read (struct link_socket *sock,
  * Socket Write routines
  */
 
-int link_socket_write_tcp (struct link_socket *sock,
+ssize_t link_socket_write_tcp (struct link_socket *sock,
 			   struct buffer *buf,
 			   struct link_socket_actual *to);
 
@@ -917,6 +910,7 @@ link_socket_write_win32 (struct link_socket *sock,
 {
   int err = 0;
   int status = 0;
+  TODO: Implement the equivalent to IP_MTU_DISCOVER from the posix version
   if (overlapped_io_active (&sock->writes))
     {
       status = socket_finalize (sock->sd, &sock->writes, NULL, NULL);
@@ -935,11 +929,19 @@ link_socket_write_win32 (struct link_socket *sock,
 
 #else
 
-static inline int
+static inline ssize_t
 link_socket_write_udp_posix (struct link_socket *sock,
 			     struct buffer *buf,
 			     struct link_socket_actual *to)
 {
+  ssize_t result;
+  
+  if (buf->ip_pmtudisc == BUF_PMTUDISC_DO)
+    {
+      if (setsockopt(sock->sd, IPPROTO_IP, IP_MTU_DISCOVER, &buf->ip_pmtudisc,
+                     sizeof(buf->ip_pmtudisc)))
+        return -1;
+    }
 #if ENABLE_IP_PKTINFO
   int link_socket_write_udp_posix_sendmsg (struct link_socket *sock,
 					   struct buffer *buf,
@@ -947,15 +949,24 @@ link_socket_write_udp_posix (struct link_socket *sock,
 
   if (proto_is_udp(sock->info.proto) && (sock->sockflags & SF_USE_IP_PKTINFO)
 	  && addr_defined_ipi(to))
-    return link_socket_write_udp_posix_sendmsg (sock, buf, to);
+    result = link_socket_write_udp_posix_sendmsg (sock, buf, to);
   else
 #endif
-    return sendto (sock->sd, BPTR (buf), BLEN (buf), 0,
+    result= sendto (sock->sd, BPTR (buf), BLEN (buf), 0,
 		   (struct sockaddr *) &to->dest.addr.sa,
 		   (socklen_t) af_addr_size(to->dest.addr.sa.sa_family));
+
+  if (buf->ip_pmtudisc == BUF_PMTUDISC_DO)
+    {
+      int val = IP_PMTUDISC_DONT;
+      if (setsockopt(sock->sd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)))
+        return -1;
+    }
+
+  return result;
 }
 
-static inline int
+static inline ssize_t
 link_socket_write_tcp_posix (struct link_socket *sock,
 			     struct buffer *buf,
 			     struct link_socket_actual *to)
@@ -965,7 +976,7 @@ link_socket_write_tcp_posix (struct link_socket *sock,
 
 #endif
 
-static inline int
+static inline ssize_t
 link_socket_write_udp (struct link_socket *sock,
 		       struct buffer *buf,
 		       struct link_socket_actual *to)
@@ -978,7 +989,7 @@ link_socket_write_udp (struct link_socket *sock,
 }
 
 /* write a TCP or UDP packet to link */
-static inline int
+static inline ssize_t
 link_socket_write (struct link_socket *sock,
 		   struct buffer *buf,
 		   struct link_socket_actual *to)
@@ -997,6 +1008,30 @@ link_socket_write (struct link_socket *sock,
       return -1; /* NOTREACHED */
     }
 }
+
+#if defined (CONNECTED_SOCKETS)
+/* Get the link's Path MTU 
+ * This only works for connected sockets, which is not how openvpn is currently
+ * implemented.
+ */
+static inline ssize_t
+link_socket_get_pmtu (struct link_socket *sock,
+		   struct link_socket_actual *to)
+{
+  ssize_t pmtu = -1; /* error */
+#ifdef WIN32
+  /* FIXME: Implement this */
+  return link_socket_get_pmtu_win32 (sock, buf, to);
+#else
+  /* Posix */
+  size_t optlen = sizeof(pmtu);
+  if (getsockopt(sock->sd, IPPROTO_IP, IP_MTU, &pmtu, &optlen))
+    return -1;
+#endif
+
+  return pmtu;
+}
+#endif
 
 #if PASSTOS_CAPABILITY
 

@@ -35,7 +35,7 @@
 
 #include "syshead.h"
 
-#if defined(ENABLE_CRYPTO) && defined(ENABLE_SSL)
+#if defined(ENABLE_SSL)
 
 #include "buffer.h"
 #include "error.h"
@@ -92,7 +92,7 @@ reliable_pid_in_range2 (const packet_id_type test,
  * verify that p1 < p2  while allowing for p1 or p2 wraparound
  */
 static inline bool
-reliable_pid_min (const packet_id_type p1,
+reliable_pid_lt (const packet_id_type p1,
 		  const packet_id_type p2)
 {
   return !reliable_pid_in_range1 (p1, p2, 0x80000000u);
@@ -188,8 +188,6 @@ error:
   return false;
 }
 
-#define ACK_SIZE(n) (sizeof (uint8_t) + ((n) ? SID_SIZE : 0) + sizeof (packet_id_type) * (n))
-
 /* write a packet ID acknowledgement record to buf, */
 /* removing all acknowledged entries from ack */
 bool
@@ -228,13 +226,6 @@ reliable_ack_write (struct reliable_ack * ack,
 
 error:
   return false;
-}
-
-/* add to extra_frame the maximum number of bytes we will need for reliable_ack_write */
-void
-reliable_ack_adjust_frame_parameters (struct frame* frame, int max)
-{
-  frame_add_to_extra_frame (frame, ACK_SIZE (max));
 }
 
 /* print a reliable ACK record coming off the wire */
@@ -278,6 +269,22 @@ reliable_ack_get_frame_extra(int n_acks)
 {
   return ACK_SIZE(n_acks);
 }
+
+static void
+reliable_update_mtu(struct send_reliable *rel, struct frame *frame, size_t mtu)
+{
+    frame_set_mtu (frame, mtu);
+    reliable_realloc(rel, frame_get_link_bufsize (frame));
+    /* Other buffers needing resize:
+     * aux_buf
+     * encrypt_buf
+     * decrypt_buf
+     * frame_master.outgoing
+     * frame_master.outgoing_return
+     */
+    frame_print (frame, D_MTU_INFO, "Updated PMTU:");
+}
+
 /*
  * struct reliable member functions.
  */
@@ -296,6 +303,7 @@ reliable_send_init (struct send_reliable *rel, int buf_size, int offset)
       e->buf = alloc_buf (buf_size);
       ASSERT (buf_init (&e->buf, offset));
     }
+  plpmtud_init (&rel->pmtud_state, LINK_MTU_STARTUP);
 }
 
 void
@@ -353,27 +361,72 @@ reliable_empty (const struct send_reliable *rel)
   for (i = 0; i < SIZE(rel->array); ++i)
     {
       const struct send_reliable_entry *e = &rel->array[i];
-      if (e->active)
+      if (e->active >= REL_ACTIVE)
 	return false;
     }
   return true;
 }
 
+bool
+reliable_send_lost (struct send_reliable *rel, struct buffer *buf,
+                    struct frame *frame)
+{
+  int i;
+  bool done = false;
+  for (i = 0; i < SIZE(rel->array); ++i)
+    {
+      struct send_reliable_entry *e = &rel->array[i];
+      if (buf->data == e->buf.data)
+	{
+          /* In this version of openvpn, only probes can be lost. */
+          ASSERT (e->active == REL_PMTUD_PROBE);
+          done = plpmtud_lostprobe (&rel->pmtud_state,
+                 buf->len + frame_get_link_encapsulation(frame));
+          /* only ACKED buffers can be used as PROBE, revert to ack
+           when lost, so they can be reused for another probe */
+
+          if (done)
+            reliable_update_mtu(rel, frame, plpmtud_get_pmtu(&rel->pmtud_state));
+
+          e->active = REL_ACKED;
+          return done;
+	}
+    }
+  ASSERT (0 && "Cannot lose an unknown buffer");
+}
+
 /* del acknowledged items from send buf */
 void
-reliable_send_purge (struct send_reliable *rel, struct reliable_ack *ack)
+reliable_send_purge (struct send_reliable *rel, struct reliable_ack *ack,
+                     struct frame *frame)
 {
   int i, j;
+  int ret = 0;
   for (i = 0; i < ack->len; ++i)
     {
       packet_id_type pid = ack->packet_id[i];
       for (j = 0; j < SIZE(rel->array); ++j)
 	{
 	  struct send_reliable_entry *e = &rel->array[j];
-	  if (e->active && e->packet_id == pid)
+	  if (e->active >= REL_ACTIVE && e->packet_id == pid)
 	    {
+              if (e->active == REL_PMTUD_PROBE)
+                {
+                  unsigned int pmtu;
+                  /* e->buf does not contain the auth data added by the auth layer in
+                   * write_control_auth(), but contains the packet_id added by
+                   * the reliable layer in reliable_mark_active_outgoing().
+                   * compensate by adding to the acked size the IP, UDP and AUTH
+                   * layer bytes, but not the packet_id
+                   */
+                  pmtu = plpmtud_ack (&rel->pmtud_state,
+                                    e->buf.len + frame_get_reliable_encapsulation(frame,0));
+
+                  reliable_update_mtu(rel, frame, pmtu);
+                }
 	      dmsg (D_REL_DEBUG,
-		   "ACK received for pid " packet_id_format ", deleting from send buffer",
+		   "ACK received for pid %s" packet_id_format ", deleting from send buffer",
+                   e->active == REL_PMTUD_PROBE ? "p" : "",
 		   (packet_id_print_type)pid);
 #if 0
 	      /* DEBUGGING -- how close were we timing out on ACK failure and resending? */
@@ -385,7 +438,7 @@ reliable_send_purge (struct send_reliable *rel, struct reliable_ack *ack)
 		  }
 	      }
 #endif
-	      e->active = false;
+             e->active = REL_ACKED;
 	      break;
 	    }
 	}
@@ -403,7 +456,7 @@ reliable_print_send_ids (const struct send_reliable *rel, struct gc_arena *gc)
   for (i = 0; i < SIZE(rel->array); ++i)
     {
       const struct send_reliable_entry *e = &rel->array[i];
-      if (e->active)
+      if (e->active >= REL_ACTIVE)
 	buf_printf (&out, " " packet_id_format, (packet_id_print_type)e->packet_id);
     }
   return BSTR (&out);
@@ -420,7 +473,9 @@ reliable_print_rec_ids (const struct rec_reliable *rel, struct gc_arena *gc)
     {
       const struct rec_reliable_entry *e = &rel->array[i];
       if (e->active)
-	buf_printf (&out, " " packet_id_format, (packet_id_print_type)e->packet_id);
+	buf_printf (&out, " %s" packet_id_format,
+                 e->active == REL_PMTUD_PROBE ? "p" : "",
+                 (packet_id_print_type)e->packet_id);
     }
   return BSTR (&out);
 }
@@ -448,7 +503,7 @@ reliable_not_replay (const struct rec_reliable *rel, packet_id_type id)
 {
   struct gc_arena gc = gc_new ();
   int i;
-  if (reliable_pid_min (id, rel->packet_id))
+  if (reliable_pid_lt (id, rel->packet_id))
     goto bad;
   for (i = 0; i < SIZE(rel->array); ++i)
     {
@@ -502,55 +557,50 @@ reliable_get_rec_buf (struct rec_reliable *rel)
   return NULL;
 }
 
-struct buffer *
-reliable_get_send_buf (struct send_reliable *rel)
-{
-  int i;
-  for (i = 0; i < SIZE(rel->array); ++i)
-    {
-      struct send_reliable_entry *e = &rel->array[i];
-      if (!e->active)
-	{
-	  ASSERT (buf_init (&e->buf, rel->offset));
-	  return &e->buf;
-	}
-    }
-  return NULL;
-}
-
-/* grab a free buffer, fail if buffer clogged by unacknowledged low packet IDs */
+/* grab a free buffer, fail if buffer clogged by unacknowledged low packet IDs
+ * Will reuse an ACKED buffer that is still in ackable range.
+ */
 struct buffer *
 reliable_get_buf_output_sequenced (struct send_reliable *rel)
 {
-  struct gc_arena gc = gc_new ();
-  int i;
-  packet_id_type min_id = 0;
-  bool min_id_defined = false;
+  unsigned int i;
+  unsigned int freshest_ack_age = SIZE(rel->array);
   struct buffer *ret = NULL;
 
-  /* find minimum active packet_id */
   for (i = 0; i < SIZE(rel->array); ++i)
     {
-      const struct send_reliable_entry *e = &rel->array[i];
-      if (e->active)
+      struct send_reliable_entry *e = &rel->array[i];
+
+      if (e->active >= REL_ACTIVE)
 	{
-	  if (!min_id_defined || reliable_pid_min (e->packet_id, min_id))
-	    {
-	      min_id_defined = true;
-	      min_id = e->packet_id;
-	    }
+          ASSERT (rel->packet_id - e->packet_id <= SIZE(rel->array) &&
+              "No packets older than RELIABLE_N_SEND_BUFFERS can linger in the resend queue");
+          if (rel->packet_id - e->packet_id == SIZE(rel->array))
+            return NULL;
 	}
+      else if (e->active == REL_ACKED)
+        {
+          /* Use up freshest ACKED buffers first, so if they're needed for PMTU
+           * probing, reliable traffic is not held up until the probe is
+           * resolved.
+           * This leaves the other, older ACKED buffers available for reliable
+           * traffic.
+           */
+          if (rel->packet_id - e->packet_id <= freshest_ack_age)
+            {
+              ret = &e->buf;
+              freshest_ack_age = rel->packet_id - e->packet_id;
+            }
+        }
+      else if (ret == NULL)
+        ret = &e->buf;
     }
 
-  if (!min_id_defined || reliable_pid_in_range1 (rel->packet_id, min_id, rel->size))
+  if (ret != NULL)
     {
-      ret = reliable_get_send_buf (rel);
+      bool success = buf_init (ret, rel->offset);
+      ASSERT (success);
     }
-  else
-    {
-      dmsg (D_REL_LOW, "ACK output sequence broken: %s", reliable_print_ids (rel, &gc));
-    }
-  gc_free (&gc);
   return ret;
 }
 
@@ -593,20 +643,55 @@ void reliable_renumber (struct send_reliable *rel, int offset)
 
 /* return true if reliable_send would return a non-NULL result */
 bool
-reliable_can_send (const struct send_reliable *rel)
+reliable_can_send (struct send_reliable *rel, struct frame *frame)
 {
   struct gc_arena gc = gc_new ();
   int i;
   int n_active = 0, n_current = 0;
   for (i = 0; i < SIZE(rel->array); ++i)
     {
-      const struct send_reliable_entry *e = &rel->array[i];
-      if (e->active)
+      struct send_reliable_entry *e = &rel->array[i];
+      if (e->active == REL_ACTIVE)
 	{
 	  ++n_active;
 	  if (now >= e->next_try)
 	    ++n_current;
 	}
+      else if (e->active == REL_PMTUD_PROBE)
+        {
+          if (e->next_try != 0 && now >= e->next_try)
+            {
+                if (!plpmtud_lostprobe(&rel->pmtud_state, e->buf.len))
+                  {
+                    /* Discovery not done, can send another probe right away */
+                    ++n_active;
+                    ++n_current;
+                  }
+                else
+                  reliable_update_mtu(rel, frame, plpmtud_get_pmtu(&rel->pmtud_state));
+                buf_init (&e->buf, rel->offset);
+                e->active = REL_ACKED;
+            }
+          else
+            {
+              ++n_active;
+              if (now >= e->next_try)
+                ++n_current;
+            }
+        }
+
+      if (e->active == REL_ACKED)
+        {
+          if (plpmtud_can_send(&rel->pmtud_state))
+            {
+              /* a probe is not in queue now, but PMTUD wants and can send one
+               * Tell the caller to not send anything else before this probe.
+               * note: n_active counter will be off, it's only used for dmsg
+               */
+              n_current = 0;
+              break;
+            }
+        }
     }
   dmsg (D_REL_DEBUG, "ACK reliable_can_send active=%d current=%d : %s",
        n_active,
@@ -628,7 +713,7 @@ reliable_unique_retry (struct send_reliable *rel, time_t retry)
       for (i = 0; i < SIZE(rel->array); ++i)
 	{
 	  struct send_reliable_entry *e = &rel->array[i];
-	  if (e->active && e->next_try == retry)
+	  if (e->active >= REL_ACTIVE && e->next_try == retry)
 	    goto again;
 	}
       break;
@@ -650,9 +735,9 @@ reliable_send (struct send_reliable *rel, int *opcode)
   for (i = 0; i < SIZE(rel->array); ++i)
     {
       struct send_reliable_entry *e = &rel->array[i];
-      if (e->active && local_now >= e->next_try)
+      if (e->active >= REL_ACTIVE && local_now >= e->next_try)
 	{
-	  if (!best || reliable_pid_min (e->packet_id, best->packet_id))
+	  if (!best || reliable_pid_lt (e->packet_id, best->packet_id))
 	    best = e;
 	}
     }
@@ -685,10 +770,11 @@ reliable_send_timeout (const struct send_reliable *rel)
   int i;
   const time_t local_now = now;
 
+  if (ret != BIG_TIMEOUT)
   for (i = 0; i < SIZE(rel->array); ++i)
     {
       const struct send_reliable_entry *e = &rel->array[i];
-      if (e->active)
+      if (e->active >= REL_ACTIVE)
 	{
 	  if (e->next_try <= local_now)
 	    {
@@ -730,7 +816,7 @@ reliable_mark_active_incoming (struct rec_reliable *rel, struct buffer *buf,
 	  e->packet_id = pid;
 
 	  /* check for replay */
-	  ASSERT (!reliable_pid_min (pid, rel->packet_id));
+	  ASSERT (!reliable_pid_lt (pid, rel->packet_id));
 
 	  dmsg (D_REL_DEBUG, "ACK mark active incoming ID " packet_id_format, (packet_id_print_type)e->packet_id);
 	  return;
@@ -743,8 +829,8 @@ reliable_mark_active_incoming (struct rec_reliable *rel, struct buffer *buf,
  * Enable an outgoing buffer previously returned by a get function as active.
  */
 
-void
-reliable_mark_active_outgoing (struct send_reliable *rel, struct buffer *buf, int opcode)
+bool
+reliable_mark_active_outgoing (struct send_reliable *rel, struct buffer *buf, int opcode, int activation, int overhead)
 {
   int i;
   for (i = 0; i < SIZE(rel->array); ++i)
@@ -752,21 +838,48 @@ reliable_mark_active_outgoing (struct send_reliable *rel, struct buffer *buf, in
       struct send_reliable_entry *e = &rel->array[i];
       if (buf == &e->buf)
 	{
-	  /* Write mode, increment packet_id (i.e. sequence number)
-	     linearly and prepend id to packet */
-	  packet_id_type net_pid;
-	  e->packet_id = rel->packet_id++;
-	  net_pid = htonpid (e->packet_id);
-	  ASSERT (buf_write_prepend (buf, &net_pid, sizeof (net_pid)));
-	  e->active = true;
-	  e->opcode = opcode;
+          if (activation == REL_PMTUD_PROBE)
+            {
+              /* Look for a previously acked packet, and reuse it.
+               * When probes get lost, there is no uncertainty about what
+               * packet_id the peer expects next.
+               */
+              ASSERT (overhead != 0);
+              if ( e->active == REL_ACKED && 
+                  plpmtud_send_opportunity(&rel->pmtud_state, buf, overhead) )
+                {
+                  e->active = REL_PMTUD_PROBE;
+                }
+              else
+                {
+                    /* If this buffer was not previously acked, send it to be
+                     * acked, so it can be used as probe in the future.
+                     */
+                    return false;
+                }
+            }
+          else
+            {
+              /* Write mode, increment packet_id (i.e. sequence number)
+                linearly and prepend id to packet */
+              e->packet_id = rel->packet_id++;
+              e->active = REL_ACTIVE;
+            }
+          packet_id_type net_pid;
+          net_pid = htonpid (e->packet_id);
+          ASSERT (buf_write_prepend (buf, &net_pid, sizeof (net_pid)));
+          e->timeout = rel->initial_timeout;
+          e->opcode = opcode;
 	  e->next_try = 0;
-	  e->timeout = rel->initial_timeout;
-	  dmsg (D_REL_DEBUG, "ACK mark active outgoing ID " packet_id_format, (packet_id_print_type)e->packet_id);
-	  return;
+          // e->sent_time = timeref;
+	  dmsg (D_REL_DEBUG, "ACK mark active outgoing ID " packet_id_format "%s",
+           (packet_id_print_type)e->packet_id,
+            e->active == REL_PMTUD_PROBE ? " (PMTU probe)" : "");
+	  return true;
 	}
     }
   ASSERT (0);			/* buf not found in rel */
+  return false;
 }
 
 /* delete a buffer previously activated by reliable_mark_active() */
@@ -828,4 +941,4 @@ reliable_debug_print (const struct send_reliable *rel, char *desc)
 
 #else
 static void dummy(void) {}
-#endif /* ENABLE_CRYPTO && ENABLE_SSL*/
+#endif /* ENABLE_SSL*/

@@ -55,7 +55,6 @@
 /* packet opcode (high 5 bits) and key-id (low 3 bits) are combined in one byte */
 #define P_KEY_ID_MASK                  0x07
 #define P_OPCODE_SHIFT                 3
-#define P_OPCODE_LEN                   1
 
 /* packet opcodes -- the V1 is intended to allow protocol changes in the future */
 #define P_CONTROL_HARD_RESET_CLIENT_V1 1     /* initial key from client, forget previous state */
@@ -136,9 +135,7 @@ struct tls_auth_standalone
 {
   struct key_ctx_bi tls_auth_key;
   struct crypto_options tls_auth_options;
-#if defined(DONT_PACK_CONTROL_FRAMES)
   struct frame frame;
-#endif
 };
 
 /*
@@ -191,10 +188,8 @@ struct tls_multi *tls_multi_init (struct tls_options *tls_options);
  *
  * @param multi        - The \c tls_multi structure of which to finalize
  *                       initialization.
- * @param frame        - The data channel's \c frame structure.
  */
-void tls_multi_init_finalize(struct tls_multi *multi,
-			     const struct frame *frame);
+void tls_multi_init_finalize(struct tls_multi *multi);
 
 /*
  * Initialize a standalone tls-auth verification object.
@@ -205,7 +200,7 @@ struct tls_auth_standalone *tls_auth_standalone_init (struct tls_options *tls_op
 /*
  * Finalize a standalone tls-auth verification object.
  */
-void tls_auth_standalone_finalize (struct tls_auth_standalone *tas,
+void XXX_tls_auth_standalone_finalize (struct tls_auth_standalone *tas,
 				   const struct frame *frame);
 
 /*
@@ -248,9 +243,6 @@ void tls_multi_free (struct tls_multi *multi, bool clear);
 int tls_multi_process (struct tls_multi *multi,
 		       struct buffer *to_link,
 		       struct link_socket_actual **to_link_addr,
-#if !defined(DONT_PACK_CONTROL_FRAMES)
-                       const struct frame *frame,
-#endif
 		       struct link_socket_info *to_link_socket_info,
 		       interval_t *wakeup);
 
@@ -306,12 +298,11 @@ int tls_multi_process (struct tls_multi *multi,
  * @li False if the packet is a data channel packet, or if an error
  *     occurred during processing of a control channel packet.
  */
+struct quirks;
 bool tls_pre_decrypt (struct tls_multi *multi,
 		      const struct link_socket_actual *from,
 		      struct buffer *buf,
-#if !defined(DONT_PACK_CONTROL_FRAMES)
-                      const struct frame *frame,
-#endif
+              struct quirks *bugfixes,
 		      struct crypto_options *opt);
 
 
@@ -331,7 +322,7 @@ bool tls_pre_decrypt (struct tls_multi *multi,
  *
  * The tests performed by this function are whether the packet's opcode is
  * correct for establishing a new VPN tunnel, whether its key ID is 0, and
- * whether its size is not too large.  This function also performs the
+ * whether its size is correct.  This function also performs the
  * initial HMAC firewall test, if configured to do so.
  *
  * The incoming packet and the local VPN tunnel state are not modified by
@@ -418,11 +409,6 @@ void ssl_set_auth_token (const char *token);
 void ssl_purge_auth_challenge (void);
 void ssl_put_auth_challenge (const char *cr_str);
 #endif
-
-/*
- * Reserve any extra space required on frames.
- */
-void tls_adjust_frame_parameters(struct frame *frame);
 
 /*
  * Send a payload over the TLS control channel

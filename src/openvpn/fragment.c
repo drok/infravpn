@@ -35,6 +35,7 @@
 #include "misc.h"
 #include "fragment.h"
 #include "integer.h"
+#include "proto.h"
 #include "memdbg.h"
 
 #define FRAG_ERR(s) { errmsg = s; goto error; }
@@ -44,7 +45,7 @@ fragment_list_buf_init (struct fragment_list *list, const struct frame *frame)
 {
   int i;
   for (i = 0; i < N_FRAG_BUF; ++i)
-    list->fragments[i].buf = alloc_buf (BUF_SIZE (frame));
+    list->fragments[i].buf = alloc_buf (LINK_RECV_BUFSIZE_STARTUP(frame));
 }
 
 static void
@@ -90,9 +91,6 @@ fragment_init (struct frame *frame)
      fragment_master assume an initial CLEAR */
   ALLOC_OBJ_CLEAR (ret, struct fragment_master);
 
-  /* add in the size of our contribution to the expanded frame size */
-  frame_add_to_extra_frame (frame, sizeof(fragment_header_type));
-
   /*
    * Outgoing sequence ID is randomized to reduce
    * the probability of sequence number collisions
@@ -108,6 +106,19 @@ fragment_init (struct frame *frame)
   return ret;
 }
 
+size_t
+fragment_get_headroom(bool config)
+{
+  return config ? sizeof(fragment_header_type) : 0;
+}
+
+size_t
+fragment_get_overhead(bool config, size_t datalen)
+{
+  (void) sizeof(datalen);
+  return fragment_get_headroom(config);
+}
+
 void
 fragment_free (struct fragment_master *f)
 {
@@ -121,8 +132,8 @@ void
 fragment_frame_init (struct fragment_master *f, const struct frame *frame)
 {
   fragment_list_buf_init (&f->incoming, frame);
-  f->outgoing = alloc_buf (BUF_SIZE (frame));
-  f->outgoing_return = alloc_buf (BUF_SIZE (frame));
+  f->outgoing = alloc_buf (frame_get_data_frag_payload_room(frame));
+  f->outgoing_return = alloc_buf (frame_get_data_frag_payload_room(frame));
 }
 
 /*
@@ -202,7 +213,7 @@ fragment_incoming (struct fragment_master *f, struct buffer *buf,
 	      frag->defined = true;
 	      frag->max_frag_size = size;
 	      frag->map = 0;
-	      ASSERT (buf_init (&frag->buf, FRAME_HEADROOM_ADJ (frame, FRAME_HEADROOM_MARKER_FRAGMENT)));
+	      ASSERT (buf_init (&frag->buf, FIXME_HEADROOM (frame)));
 	    }
 
 	  /* copy the data to fragment buffer */
@@ -313,15 +324,15 @@ fragment_outgoing (struct fragment_master *f, struct buffer *buf,
       if (f->outgoing.len)
 	msg (D_FRAG_ERRORS, "FRAG: outgoing buffer is not empty, len=[%d,%d]",
 	     buf->len, f->outgoing.len);
-      if (buf->len > PAYLOAD_SIZE_DYNAMIC(frame)) /* should we fragment? */
+      if (buf->len > frame_get_data_comp_payload_room(frame)) /* should we fragment? */
 	{
 	  /*
 	   * Send the datagram as a series of 2 or more fragments.
 	   */
-	  f->outgoing_frag_size = optimal_fragment_size (buf->len, PAYLOAD_SIZE_DYNAMIC(frame));
+	  f->outgoing_frag_size = optimal_fragment_size (buf->len, frame_get_data_comp_payload_room(frame));
 	  if (buf->len > f->outgoing_frag_size * MAX_FRAGS)
 	    FRAG_ERR ("too many fragments would be required to send datagram");
-	  ASSERT (buf_init (&f->outgoing, FRAME_HEADROOM (frame)));
+	  ASSERT (buf_init (&f->outgoing, frame_get_data_comp_headroom (frame)));
 	  ASSERT (buf_copy (&f->outgoing, buf));
 	  f->outgoing_seq_id = modulo_add (f->outgoing_seq_id, 1, N_SEQ_ID);
 	  f->outgoing_frag_id = 0;
@@ -368,7 +379,7 @@ fragment_ready_to_send (struct fragment_master *f, struct buffer *buf,
 
       /* initialize return buffer */
       *buf = f->outgoing_return;
-      ASSERT (buf_init (buf, FRAME_HEADROOM (frame)));
+      ASSERT (buf_init (buf, frame_get_data_frag_headroom (frame)));
       ASSERT (buf_copy_n (buf, &f->outgoing, size));
 
       /* fragment flags differ based on whether or not we are sending the last fragment */

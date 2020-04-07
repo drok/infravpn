@@ -61,6 +61,8 @@ void pre_setup (const struct options *options);
 
 void init_instance_handle_signals (struct context *c, const struct env_set *env, const unsigned int flags);
 
+void init_instance_mtu_related (struct context *c);
+
 void init_instance (struct context *c, const struct env_set *env, const unsigned int flags);
 
 /**

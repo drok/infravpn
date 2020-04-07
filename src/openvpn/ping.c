@@ -83,16 +83,21 @@ void
 check_ping_send_dowork (struct context *c)
 {
   c->c2.buf = c->c2.buffers->aux_buf;
-  ASSERT (buf_init (&c->c2.buf, FRAME_HEADROOM (&c->c2.frame)));
-  ASSERT (buf_safe (&c->c2.buf, MAX_RW_SIZE_TUN (&c->c2.frame)));
-  ASSERT (buf_write (&c->c2.buf, ping_string, sizeof (ping_string)));
+  bool success = buf_init (&c->c2.buf, frame_get_data_headroom (&c->c2.frame));
+  ASSERT (success && "Initialized ping buffer successfully");
+  ASSERT (BCAP(&c->c2.buf) >= sizeof (ping_string));
+  success = buf_write (&c->c2.buf, ping_string, sizeof (ping_string));
+  ASSERT (success && "Written ping magic successfully");
 
-  /*
-   * We will treat the ping like any other outgoing packet,
-   * encrypt, sign, etc.
-   */
-  encrypt_sign (c, true);
-  /* Set length to 0, so it won't be counted as activity */
-  c->c2.buf.len = 0;
-  dmsg (D_PING, "SENT PING");
+  if (success)
+    {
+      /*
+       * We will treat the ping like any other outgoing packet,
+       * encrypt, sign, etc.
+       */
+      encrypt_sign (c, true);
+      /* Set length to 0, so it won't be counted as activity */
+      c->c2.buf.len = 0;
+      dmsg (D_PING, "SENT PING");
+    }
 } 

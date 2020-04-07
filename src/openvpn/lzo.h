@@ -100,7 +100,15 @@
 /**************************************************************************/
 /** @name Miscellaneous compression defines *//** @{ *//*******************/
 #define LZO_EXTRA_BUFFER(len) ((len)/8 + 128 + 3)
-                                /**< LZO 2.0 worst-case size expansion. */
+                                /**< LZO 2.0 worst-case size expansion on
+                                 * compression
+                                 */
+
+#define LZO_SHRINK_BUFFER(len) ((len - 128 - 3)/8)
+                                /**< LZO 2.0 best-case size shinking on
+                                 * decompression
+                                 */
+
 #ifndef ENABLE_LZO_STUB
 #define COMPRESS_THRESHOLD 100  /**< Minimum packet size to attempt
                                  *   compression. */
@@ -181,20 +189,14 @@ struct lzo_compress_workspace
 /**************************************************************************/
 /** @name Functions for initialization and cleanup *//** @{ *//************/
 
-/**
- * Adjust %frame parameters for data channel payload compression.
- *
- * Data channel packet compression requires a single-byte header to
- * indicate whether a packet has been compressed or not. The packet
- * handling buffers must also allow for worst-case payload compression
- * where the compressed content size is actually larger than the original
- * content size. This function adjusts the parameters of a given frame
- * structure to include the header and allow for worst-case compression
- * expansion.
- *
- * @param frame        - The frame structure to adjust.
+/* How much headroom does LZO require in the output buffer if enabled/disabled?
+ * 
  */
-void lzo_adjust_frame_parameters(struct frame *frame);
+size_t lzo_get_headroom(bool enabled);
+
+/* How much overhead will LZO output while compressing datalen-sized block ?
+ */
+size_t lzo_get_overhead(bool enabled, size_t datalen);
 
 /**
  * Initialize a compression workspace structure.

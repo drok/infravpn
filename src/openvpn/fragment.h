@@ -273,6 +273,26 @@ typedef uint32_t fragment_header_type;
  */
 struct fragment_master *fragment_init (struct frame *frame);
 
+/* How much headroom does fragmentation require in the output buffer if
+ * enabled/disabled?
+ * 
+ * @param enabled       - configuration setting, true if frag is enabled.
+ * 
+ * @return The amount of space in bytes that the fragmentation header requires
+ * 
+ */
+size_t fragment_get_headroom(bool enabled);
+
+/* How much overhead will LZO output while compressing datalen-sized block ?
+ *
+ * @param enabled       - configuration setting, true if frag is enabled.
+ *
+ * @return The amount of space in bytes that header + any padding requires
+ *                      - in the current implementation, only the header is
+ *                      - overhead, and no padding is done 
+ */
+size_t fragment_get_overhead(bool enabled, size_t datalen);
+
 
 /**
  * Allocate internal packet buffers for a \c fragment_master structure.

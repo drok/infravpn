@@ -32,7 +32,6 @@
 
 #include "basic.h"
 #include "common.h"
-#include "mtu.h"
 #include "route.h"
 #include "tun.h"
 #include "socket.h"
@@ -113,17 +112,17 @@ struct connection_entry
 
   int tun_mtu;           /* MTU of tun device */
   bool tun_mtu_defined;  /* true if user overriding parm with command line option */
-  int tun_mtu_extra;
-  bool tun_mtu_extra_defined;
+  int UNUSED_tun_mtu_extra;
+  bool UNUSED_tun_mtu_extra_defined;
   int link_mtu;          /* MTU of device over which tunnel packets pass via TCP/UDP */
   bool link_mtu_defined; /* true if user overriding parm with command line option */
 
-  /* Advanced MTU negotiation and datagram fragmentation options */
-  int mtu_discover_type; /* used if OS supports setting Path MTU discovery options on socket */
-
   int fragment;          /* internal fragmentation size */
+#if !defined(FIXME) || !defined(WORKAROUND_UNRELIABLE_RELIABLE)
+  /* FIXME: Remove mssfix, it should be automatic and always enabled */
   int mssfix;            /* Upper bound on TCP MSS */
   bool mssfix_default;   /* true if --mssfix was supplied without a parameter */
+#endif
 
 #ifdef ENABLE_OCC
   int explicit_exit_notification;  /* Explicitly tell peer when we are exiting via OCC_EXIT message */
@@ -711,7 +710,10 @@ bool string_defined_equal (const char *s1, const char *s2);
 
 const char *options_string_version (const char* s, struct gc_arena *gc);
 
+struct quirks;
+struct frame;
 char *options_string (const struct options *o,
+                      const struct quirks *bugfixes,
 		      const struct frame *frame,
 		      struct tuntap *tt,
 		      bool remote,

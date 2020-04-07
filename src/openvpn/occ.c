@@ -64,7 +64,7 @@ const uint8_t occ_magic[] = {
   0x2d, 0x56, 0xb8, 0xd3, 0xaf, 0xc5, 0x45, 0x9c
 };
 
-static const struct mtu_load_test mtu_load_test_sequence[] = {
+static const struct mtu_load_test XXX_mtu_load_test_sequence[] = {
 
   {OCC_MTU_LOAD_REQUEST, -1000},
   {OCC_MTU_LOAD, -1000},
@@ -186,29 +186,29 @@ check_send_occ_req_dowork (struct context *c)
 }
 
 void
-check_send_occ_load_test_dowork (struct context *c)
+XXX_check_send_occ_load_test_dowork (struct context *c)
 {
   if (CONNECTION_ESTABLISHED (c))
     {
       const struct mtu_load_test *entry;
 
-      if (!c->c2.occ_mtu_load_n_tries)
+      if (!c->c2.XXX_occ_mtu_load_n_tries)
 	msg (M_INFO,
 	     "NOTE: Beginning empirical MTU test -- results should be available in 3 to 4 minutes.");
 
-      entry = &mtu_load_test_sequence[c->c2.occ_mtu_load_n_tries++];
+      entry = &XXX_mtu_load_test_sequence[c->c2.XXX_occ_mtu_load_n_tries++];
       if (entry->op >= 0)
 	{
 	  c->c2.occ_op = entry->op;
-	  c->c2.occ_mtu_load_size =
-	    EXPANDED_SIZE (&c->c2.frame) + entry->delta;
+	  c->c2.XXX_occ_mtu_load_size =
+	    frame_get_link_pmtu (&c->c2.frame) + entry->delta;
 	}
       else
 	{
 	  msg (M_INFO,
 	       "NOTE: failed to empirically measure MTU (requires " PACKAGE_NAME " 1.5 or higher at other end of connection).");
-	  event_timeout_clear (&c->c2.occ_mtu_load_test_interval);
-	  c->c2.occ_mtu_load_n_tries = 0;
+	  event_timeout_clear (&c->c2.XXX_occ_mtu_load_test_interval);
+	  c->c2.XXX_occ_mtu_load_n_tries = 0;
 	}
     }
 }
@@ -217,108 +217,131 @@ void
 check_send_occ_msg_dowork (struct context *c)
 {
   bool doit = false;
+  size_t payload;
 
   c->c2.buf = c->c2.buffers->aux_buf;
-  ASSERT (buf_init (&c->c2.buf, FRAME_HEADROOM (&c->c2.frame)));
-  ASSERT (buf_safe (&c->c2.buf, MAX_RW_SIZE_TUN (&c->c2.frame)));
-  ASSERT (buf_write (&c->c2.buf, occ_magic, OCC_STRING_SIZE));
 
-  switch (c->c2.occ_op)
+  bool success = buf_init (&c->c2.buf, frame_get_data_comp_headroom (&c->c2.frame));
+  ASSERT (success && "Initialized OCC buffer successfully");
+
+  /* Check that there is enough capacity for at least OCC_MTU_REPLY */
+  /* larger payloads will be checked individually */
+  if (success && BCAP (&c->c2.buf) >= sizeof (occ_magic) + 1 + sizeof (uint16_t) * 2)
     {
-    case OCC_REQUEST:
-      if (!buf_write_u8 (&c->c2.buf, OCC_REQUEST))
-	break;
-      dmsg (D_PACKET_CONTENT, "SENT OCC_REQUEST");
-      doit = true;
-      break;
+      success = buf_write (&c->c2.buf, occ_magic, sizeof (occ_magic));
+      ASSERT (success && "Wrote OCC magic successfully");
 
-    case OCC_REPLY:
-      if (!c->c2.options_string_local)
-	break;
-      if (!buf_write_u8 (&c->c2.buf, OCC_REPLY))
-	break;
-      if (!buf_write (&c->c2.buf, c->c2.options_string_local,
-		      strlen (c->c2.options_string_local) + 1))
-	break;
-      dmsg (D_PACKET_CONTENT, "SENT OCC_REPLY");
-      doit = true;
-      break;
+      switch (c->c2.occ_op)
+        {
+          case OCC_REQUEST:
+            if (!buf_write_u8 (&c->c2.buf, OCC_REQUEST))
+              break;
+            dmsg (D_PACKET_CONTENT, "SENT OCC_REQUEST");
+            doit = true;
+            break;
 
-    case OCC_MTU_REQUEST:
-      if (!buf_write_u8 (&c->c2.buf, OCC_MTU_REQUEST))
-	break;
-      dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_REQUEST");
-      doit = true;
-      break;
+          case OCC_REPLY:
+            if (!c->c2.options_string_local)
+              break;
+            if (!buf_write_u8 (&c->c2.buf, OCC_REPLY))
+              break;
+            payload = strlen (c->c2.options_string_local) + 1;
+            if (BCAP (&c->c2.buf) >= payload)
+              {
+                if (!buf_write (&c->c2.buf, c->c2.options_string_local, payload))
+                  break;
 
-    case OCC_MTU_REPLY:
-      if (!buf_write_u8 (&c->c2.buf, OCC_MTU_REPLY))
-	break;
-      if (!buf_write_u16 (&c->c2.buf, c->c2.max_recv_size_local))
-	break;
-      if (!buf_write_u16 (&c->c2.buf, c->c2.max_send_size_local))
-	break;
-      dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_REPLY");
-      doit = true;
-      break;
+                dmsg (D_PACKET_CONTENT, "SENT OCC_REPLY");
+                doit = true;
+              }
+            break;
 
-    case OCC_MTU_LOAD_REQUEST:
-      if (!buf_write_u8 (&c->c2.buf, OCC_MTU_LOAD_REQUEST))
-	break;
-      if (!buf_write_u16 (&c->c2.buf, c->c2.occ_mtu_load_size))
-	break;
-      dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_LOAD_REQUEST");
-      doit = true;
-      break;
+          case OCC_MTU_REQUEST:
+            if (!buf_write_u8 (&c->c2.buf, OCC_MTU_REQUEST))
+              break;
+            dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_REQUEST");
+            doit = true;
+            break;
 
-    case OCC_MTU_LOAD:
-      {
-	int need_to_add;
+          case OCC_MTU_REPLY:
+            if (!buf_write_u8 (&c->c2.buf, OCC_MTU_REPLY))
+              break;
+            if (!buf_write_u16 (&c->c2.buf, c->c2.max_recv_size_local))
+              break;
+            if (!buf_write_u16 (&c->c2.buf, c->c2.max_send_size_local))
+              break;
+            dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_REPLY");
+            doit = true;
+            break;
 
-	if (!buf_write_u8 (&c->c2.buf, OCC_MTU_LOAD))
-	  break;
-	need_to_add = min_int (c->c2.occ_mtu_load_size, EXPANDED_SIZE (&c->c2.frame))
-			       - OCC_STRING_SIZE
-			       - sizeof (uint8_t)
-	                       - EXTRA_FRAME (&c->c2.frame);
+          case OCC_MTU_LOAD_REQUEST:
+            if (!buf_write_u8 (&c->c2.buf, OCC_MTU_LOAD_REQUEST))
+              break;
+            if (!buf_write_u16 (&c->c2.buf, c->c2.XXX_occ_mtu_load_size))
+              break;
+            dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_LOAD_REQUEST");
+            doit = true;
+            break;
 
-	while (need_to_add > 0)
-	  {
-	    /*
-	     * Fill the load test packet with pseudo-random bytes.
-	     */
-	    if (!buf_write_u8 (&c->c2.buf, get_random () & 0xFF))
-	      break;
-	    --need_to_add;
-	  }
-	dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_LOAD min_int(%d-%d-%d-%d,%d) size=%d",
-	     c->c2.occ_mtu_load_size,
-	     OCC_STRING_SIZE,
-	      (int) sizeof (uint8_t),
-	     EXTRA_FRAME (&c->c2.frame),
-	     MAX_RW_SIZE_TUN (&c->c2.frame),
-	     BLEN (&c->c2.buf));
-	doit = true;
-      }
-      break;
+          case OCC_MTU_LOAD:
+            {
+              int need_to_add, payload_requested, payload_room;
 
-    case OCC_EXIT:
-      if (!buf_write_u8 (&c->c2.buf, OCC_EXIT))
-	break;
-      dmsg (D_PACKET_CONTENT, "SENT OCC_EXIT");
-      doit = true;
-      break;
+              if (!buf_write_u8 (&c->c2.buf, OCC_MTU_LOAD))
+                break;
+              payload_requested = c->c2.XXX_occ_mtu_load_size - 
+                                frame_get_data_comp_encapsulation(&c->c2.frame) -
+                                sizeof(occ_magic) -
+                                sizeof (uint8_t);
+              payload_room = frame_get_data_comp_payload_room (&c->c2.frame) -
+                                sizeof(occ_magic) -
+                                sizeof (uint8_t);
+
+              if (payload_room < 0)
+                break;
+
+              ASSERT (payload_room == BCAP(&c->c2.buf));
+
+              need_to_add = min_int (payload_requested,
+                                     frame_get_data_comp_payload_room (&c->c2.frame));
+              while (need_to_add > 0)
+                {
+                  /*
+                   * Fill the load test packet with pseudo-random bytes.
+                   */
+                  if (!buf_write_u8 (&c->c2.buf, get_random () & 0xFF))
+                    break;
+                  --need_to_add;
+                }
+              dmsg (D_PACKET_CONTENT, "SENT OCC_MTU_LOAD min_int(%d-%"PRIu16"-%zd-%zd,%"PRIu16") size=%d",
+                   c->c2.XXX_occ_mtu_load_size,
+                   frame_get_data_comp_encapsulation(&c->c2.frame),
+                   sizeof(occ_magic),
+                   sizeof (uint8_t),
+                   frame_get_data_comp_payload_room (&c->c2.frame),
+                   BLEN (&c->c2.buf));
+              doit = true;
+            }
+            break;
+
+          case OCC_EXIT:
+            if (!buf_write_u8 (&c->c2.buf, OCC_EXIT))
+              break;
+            dmsg (D_PACKET_CONTENT, "SENT OCC_EXIT");
+            doit = true;
+            break;
+        }
+      
+
+      if (doit)
+        {
+          /*
+           * We will treat the packet like any other outgoing packet,
+           * compress, encrypt, sign, etc.
+           */
+          encrypt_sign (c, true);
+        }
     }
-
-  if (doit)
-    {
-      /*
-       * We will treat the packet like any other outgoing packet,
-       * compress, encrypt, sign, etc.
-       */
-      encrypt_sign (c, true);
-    }
-
   c->c2.occ_op = -1;
 }
 
@@ -340,8 +363,8 @@ process_received_occ_msg (struct context *c)
 
     case OCC_MTU_LOAD_REQUEST:
       dmsg (D_PACKET_CONTENT, "RECEIVED OCC_MTU_LOAD_REQUEST");
-      c->c2.occ_mtu_load_size = buf_read_u16 (&c->c2.buf);
-      if (c->c2.occ_mtu_load_size >= 0)
+      c->c2.XXX_occ_mtu_load_size = buf_read_u16 (&c->c2.buf);
+      if (c->c2.XXX_occ_mtu_load_size >= 0)
 	c->c2.occ_op = OCC_MTU_LOAD;
       break;
 
@@ -382,7 +405,7 @@ process_received_occ_msg (struct context *c)
 	    msg (M_INFO, "NOTE: This connection is unable to accommodate a UDP packet size of %d. Consider using --fragment or --mssfix options as a workaround.",
 		 c->c2.max_send_size_local);
 	}
-      event_timeout_clear (&c->c2.occ_mtu_load_test_interval);
+      event_timeout_clear (&c->c2.XXX_occ_mtu_load_test_interval);
       break;
 
     case OCC_EXIT:

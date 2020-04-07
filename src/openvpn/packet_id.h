@@ -295,7 +295,7 @@ const char* packet_id_net_print(const struct packet_id_net *pin, bool print_time
 void packet_id_interactive_test();
 #endif
 
-static inline int
+static inline uint16_t
 packet_id_size (bool long_form)
 {
   return sizeof (packet_id_type) + (long_form ? sizeof (net_time_t) : 0);

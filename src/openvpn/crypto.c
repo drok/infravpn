@@ -38,6 +38,8 @@
 #include "misc.h"
 
 #include "memdbg.h"
+#include "mtu.h" /* For ENCRYPTION_BUFSIZE() in test_crypto() */
+#include "packet_id.h"
 
 /*
  * Encryption and Compression Routines.
@@ -136,8 +138,8 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
 	      ASSERT (0);
 	    }
 
-	  /* initialize work buffer with FRAME_HEADROOM bytes of prepend capacity */
-	  ASSERT (buf_init (&work, FRAME_HEADROOM (frame)));
+	  /* initialize work buffer with DATA_ENCAPSULATION bytes of prepend capacity */
+	  ASSERT (buf_init (&work, frame_get_data_headroom (frame)));
 
 	  /* set the IV pseudo-randomly */
 	  if (opt->flags & CO_USE_IV)
@@ -150,7 +152,12 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
 	  ASSERT (cipher_ctx_reset(ctx->cipher, iv_buf));
 
 	  /* Buffer overflow check */
-	  if (!buf_safe (&work, buf->len + cipher_ctx_block_size(ctx->cipher)))
+#if defined(ASSERT_ON_WORKAROUNDS)
+          ASSERT (frame_get_data_padding(frame, 0) == cipher_ctx_block_size(ctx->cipher));
+          ASSERT (buf_safe (&work, buf->len + frame_get_data_padding(frame, buf->len)) &&
+                  "Work buffer has enough room for plaintext, IV and ciphertext padding");
+#else
+	  if (!buf_safe (&work, buf->len + frame_get_data_padding(frame, buf->len)))
 	    {
 	      msg (D_CRYPT_ERRORS, "ENCRYPT: buffer size error, bc=%d bo=%d bl=%d wc=%d wo=%d wl=%d cbs=%d",
 		   buf->capacity,
@@ -162,7 +169,7 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
 		   cipher_ctx_block_size (ctx->cipher));
 	      goto err;
 	    }
-
+#endif
 	  /* Encrypt packet ID, payload */
 	  ASSERT (cipher_ctx_update (ctx->cipher, BPTR (&work), &outlen, BPTR (buf), BLEN (buf)));
 	  ASSERT (buf_inc_len(&work, outlen));
@@ -215,11 +222,13 @@ openvpn_encrypt (struct buffer *buf, struct buffer work,
   gc_free (&gc);
   return;
 
+#if !defined(ASSERT_ON_WORKAROUNDS)
 err:
   crypto_clear_error();
   buf->len = 0;
   gc_free (&gc);
   return;
+#endif
 }
 
 /*
@@ -280,7 +289,8 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
 	  int outlen;
 
 	  /* initialize work buffer with FRAME_HEADROOM bytes of prepend capacity */
-	  ASSERT (buf_init (&work, FRAME_HEADROOM_ADJ (frame, FRAME_HEADROOM_MARKER_DECRYPT)));
+          bool success = buf_init (&work, 0);
+	  ASSERT (success && "Decryption work buffer initialized successfully");
 
 	  /* use IV if user requested it */
 	  if (opt->flags & CO_USE_IV)
@@ -389,38 +399,43 @@ openvpn_decrypt (struct buffer *buf, struct buffer work,
   return false;
 }
 
-/*
- * How many bytes will we add to frame buffer for a given
- * set of crypto options?
- */
-void
-crypto_adjust_frame_parameters(struct frame *frame,
-			       const struct key_type* kt,
-			       bool cipher_defined,
-			       bool use_iv,
-			       bool packet_id,
-			       bool packet_id_long_form)
+uint16_t
+crypto_get_headroom(const struct key_type* kt,
+                    bool cipher_defined,
+                    bool use_iv,
+                    bool packet_id,
+                    bool packet_id_long_form)
 {
-  size_t crypto_overhead = 0;
 
-  if (packet_id)
-    crypto_overhead += packet_id_size (packet_id_long_form);
+  size_t iv_len = (cipher_defined && use_iv) ? cipher_kt_iv_size (kt->cipher) : 0;
+  size_t packet_id_len  = packet_id ? packet_id_size (packet_id_long_form 
+#ifdef ENABLE_OFB_CFB_MODE
+            || cipher_kt_mode_ofb_cfb(kt->cipher)
+#endif
+            ) : 0;
 
-  if (cipher_defined)
-    {
-      if (use_iv)
-	crypto_overhead += cipher_kt_iv_size (kt->cipher);
+  return iv_len +
+	 kt->hmac_length +
+         packet_id_len;
+}
 
-      /* extra block required by cipher_ctx_update() */
-      crypto_overhead += cipher_kt_block_size (kt->cipher);
-    }
+uint16_t
+crypto_get_overhead(const struct key_type* kt,
+                    bool cipher_defined,
+                    bool use_iv,
+                    bool packet_id,
+                    bool packet_id_long_form)
+{
 
-  crypto_overhead += kt->hmac_length;
+  return crypto_get_headroom(kt, cipher_defined, use_iv, packet_id,
+                             packet_id_long_form);
+}
 
-  frame_add_to_extra_frame (frame, crypto_overhead);
-
-  msg(D_MTU_DEBUG, "%s: Adjusting frame parameters for crypto by %zu bytes",
-      __func__, crypto_overhead);
+uint16_t
+crypto_get_alignment(const struct key_type* kt,
+                     bool cipher_defined)
+{
+  return (cipher_defined ? cipher_kt_block_size (kt->cipher) : 0);
 }
 
 /*
@@ -707,17 +722,22 @@ test_crypto (const struct crypto_options *co, struct frame* frame)
 {
   int i, j;
   struct gc_arena gc = gc_new ();
-  struct buffer src = alloc_buf_gc (TUN_MTU_SIZE (frame), &gc);
-  struct buffer work = alloc_buf_gc (BUF_SIZE (frame), &gc);
-  struct buffer encrypt_workspace = alloc_buf_gc (BUF_SIZE (frame), &gc);
-  struct buffer decrypt_workspace = alloc_buf_gc (BUF_SIZE (frame), &gc);
+
+  /* Input to crypto is not related in size to the MTU. Using arbitrary size */
+  #define TEST_PLAINTEXT_SIZE 138
+  #define OPCODE_HEADROOM (frame_get_data_ciphertext_headroom(frame))
+
+  struct buffer src = alloc_buf_gc (TEST_PLAINTEXT_SIZE, &gc);
+  struct buffer work = alloc_buf_gc (ENCRYPTION_BUFSIZE(frame, TEST_PLAINTEXT_SIZE), &gc);
+  struct buffer encrypt_workspace = alloc_buf_gc (ENCRYPTION_BUFSIZE(frame, TEST_PLAINTEXT_SIZE), &gc);
+  struct buffer decrypt_workspace = alloc_buf_gc (DECRYPTION_BUFSIZE(frame, ENCRYPTION_BUFSIZE(frame, TEST_PLAINTEXT_SIZE)), &gc);
   struct buffer buf = clear_buf();
 
   /* init work */
-  ASSERT (buf_init (&work, FRAME_HEADROOM (frame)));
-
+  ASSERT (buf_init (&work, frame_get_data_headroom (frame)));
+  
   msg (M_INFO, "Entering " PACKAGE_NAME " crypto self-test mode.");
-  for (i = 1; i <= TUN_MTU_SIZE (frame); ++i)
+  for (i = BCAP(&src); i > 0; --i)
     {
       update_time ();
 
@@ -738,6 +758,39 @@ test_crypto (const struct crypto_options *co, struct frame* frame)
       /* encrypt */
       openvpn_encrypt (&buf, encrypt_workspace, co, frame);
 
+      /* tls_post_encrypt() is not done, so allow unused headrom for opcode */
+      if (buf.offset != OPCODE_HEADROOM)
+	msg (M_FATAL, "SELF TEST FAILED, encrypt() uses %d of headroom, expected %d",
+          work.offset - buf.offset, work.offset - OPCODE_HEADROOM);
+        
+      if (buf.len != i + frame_get_data_overhead(frame, i) - OPCODE_HEADROOM)
+	msg (M_FATAL, "SELF TEST FAILED, encrypt() output %d bytes of ciphertext, expected %d",
+          buf.len, i + frame_get_data_overhead(frame, i) - OPCODE_HEADROOM);
+
+      /* Check that at full utilization all buffers are sized exactly. There
+       * should not be any excess buffer space.
+       */
+      if (i == src.capacity)
+        {
+          
+          if (BCAP(&src) != 0)
+            msg (M_FATAL, "SELF TEST FAILED, source plaintext buffer is not filled. Has %d bytes, expected %d",
+                BLEN(&src), i);
+
+          if (buf_reverse_capacity(&src) != 0)
+            msg (M_FATAL, "SELF TEST FAILED, Too much headroom allocated for source plaintext buffer. Excess is %d bytes",
+                buf_reverse_capacity(&src));
+
+          if (BCAP(&buf) != 0)
+             msg (M_FATAL, "SELF TEST FAILED, dest ciphertext buffer is not filled. Has %d bytes, expected %d",
+                 BLEN(&buf), i + frame_get_data_overhead(frame, i));
+            
+          /* tls_post_encrypt() is not done, so allow unused headrom for opcode */
+          if (buf_reverse_capacity(&buf) != OPCODE_HEADROOM)
+             msg (M_FATAL, "SELF TEST FAILED, Too much headroom allocated for dest ciphertext buffer. Excess is %d bytes",
+                 buf_reverse_capacity(&buf) - OPCODE_HEADROOM);
+              
+        }
       /* decrypt */
       openvpn_decrypt (&buf, decrypt_workspace, co, frame);
 

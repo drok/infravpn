@@ -29,6 +29,7 @@
 #endif
 
 #include "syshead.h"
+#include "quirks.h"
 
 #include "forward.h"
 #include "init.h"
@@ -97,10 +98,6 @@ check_tls_dowork (struct context *c)
     {
       const int tmp_status = tls_multi_process
 	(c->c2.tls_multi, &c->c2.to_link, &c->c2.to_link_addr,
-#if !defined(DONT_PACK_CONTROL_FRAMES)
-         &c->c2.frame,
-#endif
-
 	 get_link_socket_info (c), &wakeup);
       if (tmp_status == TLSMP_ACTIVE)
 	{
@@ -232,6 +229,18 @@ check_connection_established_dowork (struct context *c)
 	  event_timeout_clear (&c->c2.wait_for_connect);
 	}
     }
+
+#if defined(WORKAROUND_UNRELIABLE_RELIABLE)
+  /* Initialize Path MTU Discovery timer */
+  event_timeout_init (&c->c2.pmtud_interval, PMTUD_INTERVAL, 0);
+  /* Start the first Path discovery right after connection.
+   * It needs max_recv_size_local to be primed to something reasonable. The
+   * authentication and key exchange will do just that. As time goes on,
+   * max_recv_size_local will get closer to the actual remote's buffer size,
+   * and PMTUD will be more accurate.
+   */
+  check_pmtud (c);
+#endif
 }
 
 /*
@@ -388,27 +397,24 @@ check_fragment_dowork (struct context *c)
 {
   struct link_socket_info *lsi = get_link_socket_info (c);
 
-#if EXTENDED_SOCKET_ERROR_CAPABILITY
   /* OS MTU Hint? */
   if (lsi->mtu_changed && c->c2.ipv4_tun)
     {
-      frame_adjust_path_mtu (&c->c2.frame_fragment, c->c2.link_socket->mtu,
-			     c->options.ce.proto);
+      frame_set_mtu(&c->c2.frame, c->c2.link_socket->mtu);
       lsi->mtu_changed = false;
     }
-#endif
 
   if (fragment_outgoing_defined (c->c2.fragment))
     {
       if (!c->c2.to_link.len)
 	{
 	  /* encrypt a fragment for output to TCP/UDP port */
-	  ASSERT (fragment_ready_to_send (c->c2.fragment, &c->c2.buf, &c->c2.frame_fragment));
+	  ASSERT (fragment_ready_to_send (c->c2.fragment, &c->c2.buf, &c->c2.frame));
 	  encrypt_sign (c, false);
 	}
     }
 
-  fragment_housekeeping (c->c2.fragment, &c->c2.frame_fragment, &c->c2.timeval);
+  fragment_housekeeping (c->c2.fragment, &c->c2.frame, &c->c2.timeval);
 }
 #endif
 
@@ -458,7 +464,7 @@ encrypt_sign (struct context *c, bool comp_frag)
 #endif
 #ifdef ENABLE_FRAGMENT
       if (c->c2.fragment)
-	fragment_outgoing (c->c2.fragment, &c->c2.buf, &c->c2.frame_fragment);
+	fragment_outgoing (c->c2.fragment, &c->c2.buf, &c->c2.frame);
 #endif
     }
 
@@ -497,6 +503,8 @@ encrypt_sign (struct context *c, bool comp_frag)
   if (c->c2.tls_multi)
     {
       tls_post_encrypt (c->c2.tls_multi, &c->c2.buf);
+      ASSERT (buf_reverse_capacity (&c->c2.buf) <= frame_get_data_padding_max(&c->c2.frame) &&
+              "No excess buffer headroom was allocated for TUN->LINK data");
     }
 #endif
 #endif
@@ -560,7 +568,7 @@ process_coarse_timers (struct context *c)
   check_send_occ_req (c);
 
   /* Should we send an MTU load test? */
-  check_send_occ_load_test (c);
+  XXX_check_send_occ_load_test (c);
 
   /* Should we send an OCC_EXIT message to remote? */
   if (c->c2.explicit_exit_notification_time_wait)
@@ -569,6 +577,9 @@ process_coarse_timers (struct context *c)
 
   /* Should we ping the remote? */
   check_ping_send (c);
+
+  /* Should we do Path MTU Discovery? */
+  check_pmtud (c);
 }
 
 static void
@@ -578,7 +589,7 @@ check_coarse_timers_dowork (struct context *c)
   c->c2.timeval.tv_sec = BIG_TIMEOUT;
   c->c2.timeval.tv_usec = 0;
   process_coarse_timers (c);
-  c->c2.coarse_timer_wakeup = now + c->c2.timeval.tv_sec; 
+  c->c2.coarse_timer_wakeup = now + c->c2.timeval.tv_sec;
 
   dmsg (D_INTERVAL, "TIMER: coarse timer wakeup %d seconds", (int) c->c2.timeval.tv_sec);
 
@@ -645,7 +656,7 @@ socks_preprocess_outgoing_link (struct context *c,
 
 /* undo effect of socks_preprocess_outgoing_link */
 static inline void
-link_socket_write_post_size_adjust (int *size,
+link_socket_write_post_size_adjust (ssize_t *size,
 				    int size_delta,
 				    struct buffer *buf)
 {
@@ -676,7 +687,8 @@ read_incoming_link (struct context *c)
   perf_push (PERF_READ_IN_LINK);
 
   c->c2.buf = c->c2.buffers->read_link_buf;
-  ASSERT (buf_init (&c->c2.buf, FRAME_HEADROOM_ADJ (&c->c2.frame, FRAME_HEADROOM_MARKER_READ_LINK)));
+  bool success = buf_init (&c->c2.buf, 0);
+  ASSERT (success && "UDP/TCP receive buffer initialization succeeded");
 
   status = link_socket_read (c->c2.link_socket,
 			     &c->c2.buf,
@@ -767,7 +779,7 @@ process_incoming_link (struct context *c)
     }
   else
     c->c2.original_recv_size = 0;
-  
+
 #ifdef ENABLE_DEBUG
   /* take action to corrupt packet if we are in gremlin test mode */
   if (c->options.gremlin) {
@@ -800,6 +812,13 @@ process_incoming_link (struct context *c)
       if (!link_socket_verify_incoming_addr (&c->c2.buf, lsi, &c->c2.from))
 	link_socket_bad_incoming_addr (&c->c2.buf, lsi, &c->c2.from);
 
+#if defined (UNRELIABLE_RELIABLE_V2)
+WORKAROUND(&c->c2.bugfixes, UNRELIABLE_RELIABLE)
+  {
+      c->c2.max_recv_size_local = max_int (c->c2.original_recv_size, c->c2.max_recv_size_local);
+  }
+#endif
+
 #ifdef ENABLE_CRYPTO
 #ifdef ENABLE_SSL
       if (c->c2.tls_multi)
@@ -815,9 +834,7 @@ process_incoming_link (struct context *c)
 	   * and return false.
 	   */
 	  if (tls_pre_decrypt (c->c2.tls_multi, &c->c2.from, &c->c2.buf,
-#if !defined(DONT_PACK_CONTROL_FRAMES)
-                          &c->c2.frame,
-#endif
+                              &c->c2.bugfixes,
                           &c->c2.crypto_options))
 	    {
 	      interval_action (&c->c2.tmp_int);
@@ -852,7 +869,7 @@ process_incoming_link (struct context *c)
 
 #ifdef ENABLE_FRAGMENT
       if (c->c2.fragment)
-	fragment_incoming (c->c2.fragment, &c->c2.buf, &c->c2.frame_fragment);
+	fragment_incoming (c->c2.fragment, &c->c2.buf, &c->c2.frame);
 #endif
 
 #ifdef ENABLE_LZO
@@ -890,7 +907,6 @@ process_incoming_link (struct context *c)
       if (c->c2.buf.len > 0)
 	{
 	  c->c2.link_read_bytes_auth += c->c2.buf.len;
-	  c->c2.max_recv_size_local = max_int (c->c2.original_recv_size, c->c2.max_recv_size_local);
 	}
 
       /* Did we just receive an openvpn ping packet? */
@@ -939,12 +955,27 @@ read_incoming_tun (struct context *c)
 
   c->c2.buf = c->c2.buffers->read_tun_buf;
 #ifdef TUN_PASS_BUFFER
-  read_tun_buffered (c->c1.tuntap, &c->c2.buf, MAX_RW_SIZE_TUN (&c->c2.frame));
+  read_tun_buffered (c->c1.tuntap, &c->c2.buf, BCAP (&c->c2.buf));
 #else
-  ASSERT (buf_init (&c->c2.buf, FRAME_HEADROOM (&c->c2.frame)));
-  ASSERT (buf_safe (&c->c2.buf, MAX_RW_SIZE_TUN (&c->c2.frame)));
-  c->c2.buf.len = read_tun (c->c1.tuntap, BPTR (&c->c2.buf), MAX_RW_SIZE_TUN (&c->c2.frame));
+  bool success = buf_init (&c->c2.buf, frame_get_data_comp_headroom (&c->c2.frame));
+  ASSERT (success && "tun receive buffer initialization succeeded");
+
+  ASSERT (BCAP (&c->c2.buf) == TUN_RECV_BUFSIZE_STARTUP +
+            /* + replay */
+            frame_get_data_comp_overhead(&c->c2.frame, TUN_RECV_BUFSIZE_STARTUP) -
+            frame_get_data_comp_headroom(&c->c2.frame)
+          &&
+          "Max tun read is exactly the expected, tun MTU");
+  c->c2.buf.len = read_tun (c->c1.tuntap, BPTR (&c->c2.buf), BCAP (&c->c2.buf));
 #endif
+
+  if (BCAP (&c->c2.buf) == 0)
+    {
+      /* The TUN_MSDU_GUARD byte was written probably because the TUN MTU was
+       * manually increased, and the packet is likely truncated. Must return
+       * ICMP "Packet Too Big"
+       */
+    }
 
 #ifdef PACKET_TRUNCATION_CHECK
   ipv4_packet_size_verify (BPTR (&c->c2.buf),
@@ -960,7 +991,7 @@ read_incoming_tun (struct context *c)
       register_signal (c, SIGTERM, "tun-stop");
       msg (M_INFO, "TUN/TAP interface has been stopped, exiting");
       perf_pop ();
-      return;		  
+      return;
     }
 
   /* Was TUN/TAP I/O operation aborted? */
@@ -1133,10 +1164,10 @@ process_ip_header (struct context *c, unsigned int flags, struct buffer *buf)
 	      if (flags & PIPV4_PASSTOS)
 		link_socket_extract_tos (c->c2.link_socket, &ipbuf);
 #endif
-			  
+
 	      /* possibly alter the TCP MSS */
 	      if (flags & PIP_MSSFIX)
-		mss_fixup_ipv4 (&ipbuf, MTU_TO_MSS (TUN_MTU_SIZE_DYNAMIC (&c->c2.frame)));
+		mss_fixup_ipv4 (&ipbuf, MTU_TO_MSS (frame_get_data_comp_payload_room (&c->c2.frame)));
 
 #ifdef ENABLE_CLIENT_NAT
 	      /* possibly do NAT on packet */
@@ -1158,7 +1189,7 @@ process_ip_header (struct context *c, unsigned int flags, struct buffer *buf)
 	    {
 	      /* possibly alter the TCP MSS */
 	      if (flags & PIP_MSSFIX)
-		mss_fixup_ipv6 (&ipbuf, MTU_TO_MSS (TUN_MTU_SIZE_DYNAMIC (&c->c2.frame)));
+		mss_fixup_ipv6 (&ipbuf, MTU_TO_MSS (frame_get_data_comp_payload_room (&c->c2.frame)));
 	    }
 	}
     }
@@ -1175,13 +1206,13 @@ process_outgoing_link (struct context *c)
 
   perf_push (PERF_PROC_OUT_LINK);
 
-  if (c->c2.to_link.len > 0 && c->c2.to_link.len <= EXPANDED_SIZE (&c->c2.frame))
+  if (c->c2.to_link.len > 0)
     {
       /*
        * Setup for call to send/sendto which will send
        * packet to remote over the TCP/UDP port.
        */
-      int size = 0;
+      ssize_t size = 0;
       ASSERT (link_socket_actual_defined (c->c2.to_link_addr));
 
 #ifdef ENABLE_DEBUG
@@ -1231,16 +1262,28 @@ process_outgoing_link (struct context *c)
 	    /* If Socks5 over UDP, prepend header */
 	    socks_preprocess_outgoing_link (c, &to_addr, &size_delta);
 #endif
+//            ASSERT (c->c2.to_link.offset == 0 &&
+//                    "Headroom calculation is exact, no padding");
 	    /* Send packet */
 	    size = link_socket_write (c->c2.link_socket,
 				      &c->c2.to_link,
 				      to_addr);
+/* FIXME: Enable this */
+/*
+ *             ASSERT (c->c2.to_link.len <= EXPANDED_SIZE_DYNAMIC(&c->c2.frame) &&
+ *                  "Send packets no larger than detected PMTU");
+ */
 
 #ifdef ENABLE_SOCKS
 	    /* Undo effect of prepend */
 	    link_socket_write_post_size_adjust (&size, size_delta, &c->c2.to_link);
 #endif
 	  }
+
+          /* Check return status */
+          check_status (size,
+            c->c2.to_link.ip_pmtudisc == BUF_PMTUDISC_DO ? "pmtu-probe" : "write",
+            c->c2.link_socket, NULL);
 
 	  if (size > 0)
 	    {
@@ -1261,33 +1304,47 @@ process_outgoing_link (struct context *c)
 		}
 #endif
 	    }
+          else if (size == -1)
+            {
+#if defined (CONNECTED_SOCKETS)
+              int pmtu = link_socket_get_pmtu(c->c2.link_socket);
+
+              check_status (size, "getpmtu", c->c2.link_socket, NULL);
+
+              if (plpmtud_hint(&c->c2.tls_multi->session[TM_ACTIVE].key[KS_PRIMARY].send_reliable->pmtud_state,
+                       pmtu))
+#else
+#if defined(ENABLE_SSL)
+              /* Only PMTU probes can be lost. */
+              if (!reliable_send_lost (c->c2.tls_multi->session[TM_ACTIVE].key[KS_PRIMARY].send_reliable,
+                                  &c->c2.to_link, &c->c2.frame))
+#endif
+#endif
+              /* lost probe is expected and handled, return write complete */
+              buf_reset (&c->c2.to_link);
+              size = BLEN(&c->c2.to_link);
+            }
+
 	}
 
-      /* Check return status */
-      check_status (size, "write", c->c2.link_socket, NULL);
+      bool ret = (size == BLEN (&c->c2.to_link));
 
       if (size > 0)
 	{
 	  /* Did we write a different size packet than we intended? */
-	  if (size != BLEN (&c->c2.to_link))
+	  if (!ret)
+            {
 	    msg (D_LINK_ERRORS,
-		 "TCP/UDP packet was truncated/expanded on write to %s (tried=%d,actual=%d)",
+		 "TCP/UDP packet was truncated/expanded on write to %s (tried=%d,actual=%zd)",
 		 print_link_socket_actual (c->c2.to_link_addr, &gc),
 		 BLEN (&c->c2.to_link),
 		 size);
+            }
 	}
 
       /* if not a ping/control message, indicate activity regarding --inactive parameter */
       if (c->c2.buf.len > 0 )
         register_activity (c, size);
-    }
-  else
-    {
-      if (c->c2.to_link.len > 0)
-	msg (D_LINK_ERRORS, "TCP/UDP packet too large on write to %s (tried=%d,max=%d)",
-	     print_link_socket_actual (c->c2.to_link_addr, &gc),
-	     c->c2.to_link.len,
-	     EXPANDED_SIZE (&c->c2.frame));
     }
 
   buf_reset (&c->c2.to_link);
@@ -1320,7 +1377,9 @@ process_outgoing_tun (struct context *c)
    */
   process_ip_header (c, PIP_MSSFIX|PIPV4_EXTRACT_DHCP_ROUTER|PIPV4_CLIENT_NAT|PIPV4_OUTGOING, &c->c2.to_tun);
 
-  if (c->c2.to_tun.len <= MAX_RW_SIZE_TUN (&c->c2.frame))
+#if 0
+  if (c->c2.to_tun.len <= frame_get_payload_comp_room(&c->c2.frame))
+#endif
     {
       /*
        * Write to TUN/TAP device.
@@ -1366,6 +1425,7 @@ process_outgoing_tun (struct context *c)
 	  register_activity (c, size);
 	}
     }
+#if 0
   else
     {
       /*
@@ -1376,6 +1436,7 @@ process_outgoing_tun (struct context *c)
 	   c->c2.to_tun.len,
 	   MAX_RW_SIZE_TUN (&c->c2.frame));
     }
+#endif
 
   buf_reset (&c->c2.to_tun);
 
@@ -1488,7 +1549,7 @@ io_wait_dowork (struct context *c, const unsigned int flags)
 	  /* set traffic shaping delay in microseconds */
 	  if (c->options.shaper)
 	    delay = max_int (delay, shaper_delay (&c->c2.shaper));
-	  
+
 	  if (delay < 1000)
 	    {
 	      socket |= EVENT_WRITE;
