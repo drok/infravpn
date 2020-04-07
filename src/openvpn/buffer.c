@@ -424,7 +424,11 @@ x_gc_freespecial(struct gc_arena *a)
 }
 
 void
+#ifdef DMALLOC
+gc_addspecial_debug(void *addr, void(free_function)(void *), struct gc_arena *a, const char *file, int line)
+#else
 gc_addspecial(void *addr, void(free_function)(void *), struct gc_arena *a)
+#endif
 {
     ASSERT(a);
     struct gc_entry_special *e;

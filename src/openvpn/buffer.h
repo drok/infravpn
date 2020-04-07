@@ -164,6 +164,8 @@ void buf_size_error(const size_t size);
 #define gc_malloc(size, clear, arena) gc_malloc_debug(size, clear, arena, __FILE__, __LINE__)
 #define string_alloc(str, gc)         string_alloc_debug(str, gc, __FILE__, __LINE__)
 #define string_alloc_buf(str, gc)     string_alloc_buf_debug(str, gc, __FILE__, __LINE__)
+#define gc_addspecial(addr, fn, gc)   gc_addspecial_debug(addr, fn, gc, __FILE__, __LINE__)
+
 
 struct buffer alloc_buf_debug(size_t size, const char *file, int line);
 
@@ -176,6 +178,8 @@ void *gc_malloc_debug(size_t size, bool clear, struct gc_arena *a, const char *f
 char *string_alloc_debug(const char *str, struct gc_arena *gc, const char *file, int line);
 
 struct buffer string_alloc_buf_debug(const char *str, struct gc_arena *gc, const char *file, int line);
+
+void gc_addspecial_debug(void *addr, void (*free_function)(void *), struct gc_arena *a, const char *file, int line);
 
 #else  /* ifdef DMALLOC */
 
@@ -191,10 +195,9 @@ char *string_alloc(const char *str, struct gc_arena *gc);
 
 struct buffer string_alloc_buf(const char *str, struct gc_arena *gc);
 
-#endif /* ifdef DMALLOC */
-
 void gc_addspecial(void *addr, void (*free_function)(void *), struct gc_arena *a);
 
+#endif /* ifdef DMALLOC */
 
 #ifdef BUF_INIT_TRACKING
 #define buf_init(buf, offset) buf_init_debug(buf, offset, __FILE__, __LINE__)
