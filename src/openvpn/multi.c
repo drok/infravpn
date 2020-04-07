@@ -99,7 +99,6 @@ learn_address_script(const struct multi_context *m,
     struct gc_arena gc = gc_new();
     struct env_set *es;
     bool ret = true;
-    struct plugin_list *plugins;
 
     /* get environmental variable source */
     if (mi && mi->context.c2.es)
@@ -110,6 +109,9 @@ learn_address_script(const struct multi_context *m,
     {
         es = env_set_create(&gc);
     }
+
+#if defined(ENABLE_PLUGIN)
+    struct plugin_list *plugins;
 
     /* get plugin source */
     if (mi)
@@ -138,6 +140,7 @@ learn_address_script(const struct multi_context *m,
         }
         argv_reset(&argv);
     }
+#endif
 
     if (m->top.options.learn_address_script)
     {
@@ -578,6 +581,7 @@ multi_client_disconnect_script(struct multi_instance *mi)
     {
         multi_client_disconnect_setenv(mi);
 
+#if defined(ENABLE_PLUGIN)
         if (plugin_defined(mi->context.plugins, OPENVPN_PLUGIN_CLIENT_DISCONNECT))
         {
             if (plugin_call(mi->context.plugins, OPENVPN_PLUGIN_CLIENT_DISCONNECT, NULL, NULL, mi->context.c2.es) != OPENVPN_PLUGIN_FUNC_SUCCESS)
@@ -585,6 +589,7 @@ multi_client_disconnect_script(struct multi_instance *mi)
                 msg(M_WARN, "WARNING: client-disconnect plugin call failed");
             }
         }
+#endif
 
         if (mi->context.options.client_disconnect_script)
         {
