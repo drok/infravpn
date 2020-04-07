@@ -1975,7 +1975,6 @@ options_postprocess_verify_ce(const struct options *options, const struct connec
 {
     struct options defaults;
     int dev = DEV_TYPE_UNDEF;
-    bool pull = false;
 
     init_options(&defaults, true);
 
@@ -2063,7 +2062,7 @@ options_postprocess_verify_ce(const struct options *options, const struct connec
 
     /* will we be pulling options from server? */
 #if P2MP
-    pull = options->pull;
+    bool pull = options->pull;
 #endif
 
     /*
