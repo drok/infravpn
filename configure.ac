@@ -173,8 +173,11 @@ AM_CONDITIONAL([IMPLEMENTED_buffer_2_3],
 AM_CONDITIONAL([IMPLEMENTED_buffer_2_4],
     [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
     ${GREP} '^gc_addspecial(void \*addr, void(free_function)(void \*), struct gc_arena \*a)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_buffer_2_4_5],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.h &&
+    ${GREP} '^void buffer_list_push(struct buffer_list \*ol, const char \*str);$' $(dirname "$srcdir/$ac_unique_file")/buffer.h >/dev/null])
 AM_CONDITIONAL([IMPLEMENTED_buffer_2_5],
-    [test -f $(dirname "$srcdir/$ac_unique_file")/base64.c &&
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
     ${GREP} '^buffer_write_file(const char \*filename, const struct buffer \*buf)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c])
 
 AM_CONDITIONAL([IMPLEMENTED_mtu_2_0],

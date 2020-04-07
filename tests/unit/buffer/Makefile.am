@@ -59,6 +59,10 @@ if IMPLEMENTED_buffer_2_4
 activation_CPPFLAGS += -DIMPLEMENTATION_2_4
 endif
 
+if IMPLEMENTED_buffer_2_4_5
+activation_CPPFLAGS += -DIMPLEMENTATION_2_4_5
+endif
+
 if IMPLEMENTED_buffer_2_5
 activation_CPPFLAGS += -DIMPLEMENTATION_2_5
 endif

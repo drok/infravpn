@@ -110,8 +110,8 @@ test_buffer_strprefix(void **state)
 }
 #endif
 
-#if defined(IMPLEMENTATION_2_3)
-/* Support the 2.3 signature change:
+#if defined(IMPLEMENTATION_2_4_5)
+/* Support the 2.4.5 signature change:
  * buffer_list_push(struct buffer_list *ol, const char *str)
  */
 #define teststr_type char *
