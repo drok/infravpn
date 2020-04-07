@@ -323,6 +323,10 @@ common_sources += \
     $(openvpn_srcdir)/ssl_openssl.c         $(openvpn_srcdir)/ssl_openssl.h \
     $(openvpn_srcdir)/ssl_verify.c          $(openvpn_srcdir)/ssl_verify.h \
     $(openvpn_srcdir)/ssl_verify_openssl.c  $(openvpn_srcdir)/ssl_verify_openssl.h
+if UNIT_TESTED_rfc4821
+common_sources += \
+    $(openvpn_srcdir)/rfc4821.c             $(openvpn_srcdir)/rfc4821.h
+endif
 if INTEGRATED_ovpn_1_0
 # Sources added after 2.2 but before last ovpn/1.0 revision
 common_sources += \
