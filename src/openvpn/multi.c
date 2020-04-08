@@ -85,7 +85,6 @@ learn_address_script (const struct multi_context *m,
   struct gc_arena gc = gc_new ();
   struct env_set *es;
   bool ret = true;
-  struct plugin_list *plugins;
 
   /* get environmental variable source */
   if (mi && mi->context.c2.es)
@@ -93,13 +92,15 @@ learn_address_script (const struct multi_context *m,
   else
     es = env_set_create (&gc);
 
+#ifdef ENABLE_PLUGIN
+  struct plugin_list *plugins;
+
   /* get plugin source */
   if (mi)
     plugins = mi->context.plugins;
   else
     plugins = m->top.plugins;
 
-#ifdef ENABLE_PLUGIN
   if (plugin_defined (plugins, OPENVPN_PLUGIN_LEARN_ADDRESS))
     {
       struct argv argv = argv_new ();

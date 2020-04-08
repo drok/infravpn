@@ -1764,7 +1764,9 @@ delete_route (struct route_ipv4 *r,
   struct argv argv;
   const char *network;
   const char *netmask;
+#if !defined(TARGET_LINUX)
   const char *gateway;
+#endif
   int is_local_route;
 
   if ((r->flags & (RT_DEFINED|RT_ADDED)) != (RT_DEFINED|RT_ADDED))
@@ -1775,7 +1777,9 @@ delete_route (struct route_ipv4 *r,
 
   network = print_in_addr_t (r->network, 0, &gc);
   netmask = print_in_addr_t (r->netmask, 0, &gc);
+#if !defined(TARGET_LINUX)
   gateway = print_in_addr_t (r->gateway, 0, &gc);
+#endif
 
   is_local_route = local_route(r->network, r->netmask, r->gateway, rgi);
   if (is_local_route == LR_ERROR)

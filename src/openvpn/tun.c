@@ -667,7 +667,9 @@ do_ifconfig (struct tuntap *tt,
       const char *ifconfig_remote_netmask = NULL;
       const char *ifconfig_broadcast = NULL;
       const char *ifconfig_ipv6_local = NULL;
+#if defined(TARGET_SOLARIS)
       const char *ifconfig_ipv6_remote = NULL;
+#endif
       bool do_ipv6 = false;
       struct argv argv;
 
@@ -690,7 +692,9 @@ do_ifconfig (struct tuntap *tt,
       if ( tt->ipv6 && tt->did_ifconfig_ipv6_setup )
         {
 	  ifconfig_ipv6_local = print_in6_addr (tt->local_ipv6, 0, &gc);
+#if defined(TARGET_SOLARIS)
 	  ifconfig_ipv6_remote = print_in6_addr (tt->remote_ipv6, 0, &gc);
+#endif
 	  do_ipv6 = true;
 	}
 
