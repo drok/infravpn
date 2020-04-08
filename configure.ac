@@ -282,7 +282,8 @@ AM_CONDITIONAL([ENABLE_UNITTESTS_ALL], [test "${enable_unit_tests}" = "all"])
 AC_ARG_VAR([TEST_CPPFLAGS], [Preprocessor flags applied to all C unit tests])
 AC_ARG_VAR([TEST_CFLAGS], [Compiler flags applied to all C unit tests])
 AC_ARG_VAR([TEST_LDFLAGS], [Linker flags applied to all C unit tests])
-TEST_CFLAGS="$TEST_CFLAGS -g"
+
+ADD_CFLAGS(TEST, [-Werror=implicit-function-declaration])
 
 AC_ARG_VAR([XFAIL_TESTS], [Tests expected to fail])
 
