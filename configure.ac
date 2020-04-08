@@ -41,23 +41,31 @@ AC_CONFIG_HEADERS([config.h include/openvpn-plugin.h])
 AC_CONFIG_SRCDIR([src/openvpn/syshead.h])
 AC_CONFIG_MACRO_DIR([m4])
 
-dnl Initialize automake.  automake < 1.12 didn't have serial-tests and
-dnl gives an error if it sees this, but for automake >= 1.13
-dnl serial-tests is required so we have to include it.  Solution is to
-dnl test for the version of automake (by running an external command)
-dnl and provide it if necessary.  Note we have to do this entirely using
-dnl m4 macros since automake queries this macro by running
-dnl 'autoconf --trace ...'.
-m4_define([serial_tests], [
-    m4_esyscmd([automake --version |
-                head -1 |
-                awk '{split ($NF,a,"."); if (a[1] == 1 && a[2] >= 12) { print "serial-tests" }}'
-    ])
-])
-AM_INIT_AUTOMAKE(foreign serial_tests) dnl NB: Do not [quote] this parameter.
+AM_INIT_AUTOMAKE(foreign parallel-tests) dnl NB: Do not [quote] this parameter.
 AC_CANONICAL_HOST
 AC_USE_SYSTEM_EXTENSIONS
 
+# Required Library Versions ----------------------------------------------------
+required_mbedtls_ver_min=2.0.0
+required_mbedtls_ver_min_hex=0x02000000
+required_mbedtls_ver_max=3.0.0
+required_mbedtls_ver_max_hex=0x03000000
+
+required_openssl_ver_min=0.9.8
+required_openssl_ver_min_hex=0x00908000L
+
+required_lz4_ver_min=1.7.1
+required_lz4_ver_min_hex=10701L
+
+required_pkcs11_ver_min=1.11
+
+# Human-readable program names -------------------------------------------------
+mbedtls="mbedtls (>=$required_mbedtls_ver_min <$required_mbedtls_ver_max)"
+OpenSSL="OpenSSL (>=$required_openssl_ver_min)"
+lz4="Liblz4 (>=$required_lz4_ver_min)"
+PKCS11_HELPER="libpkcs11-helper (>=$required_pkcs11_ver_min)"
+
+# Package Configuration --------------------------------------------------------
 AC_ARG_ENABLE(
 	[lzo],
 	[AS_HELP_STRING([--disable-lzo], [disable LZO compression support @<:@default=yes@:>@])],
@@ -359,6 +367,9 @@ AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_SED
 AC_PROG_MAKE_SET
+AC_PROG_GREP
+AM_PROG_CC_C_O
+AC_PATH_PROG([VALGRIND], [valgrind], [echo Failing test because Valgrind is not installed && false])
 
 AC_ARG_VAR([IFCONFIG], [full path to ipconfig utility])
 AC_ARG_VAR([ROUTE], [full path to route utility])
@@ -380,12 +391,6 @@ AC_DEFINE_UNQUOTED([IFCONFIG_PATH], ["$IFCONFIG"], [Path to ifconfig tool])
 AC_DEFINE_UNQUOTED([IPROUTE_PATH], ["$IPROUTE"], [Path to iproute tool])
 AC_DEFINE_UNQUOTED([ROUTE_PATH], ["$ROUTE"], [Path to route tool])
 AC_DEFINE_UNQUOTED([SYSTEMD_ASK_PASSWORD_PATH], ["$SYSTEMD_ASK_PASSWORD"], [Path to systemd-ask-password tool])
-
-# Set -std=c99 unless user already specified a -std=
-case "${CFLAGS}" in
-  *-std=*) ;;
-  *)       CFLAGS="${CFLAGS} -std=c99" ;;
-esac
 
 #
 # Libtool
@@ -425,7 +430,8 @@ AX_TYPE_SOCKLEN_T
 AX_EMPTY_ARRAY
 AC_CHECK_SIZEOF([unsigned int])
 AC_CHECK_SIZEOF([unsigned long])
-AC_CHECK_HEADERS([ \
+AC_CHECK_HEADERS_ONCE([ \
+    stdbool.h \
 	stdio.h stdarg.h limits.h \
 	time.h errno.h fcntl.h io.h direct.h \
 	ctype.h sys/types.h sys/socket.h \
@@ -435,7 +441,7 @@ AC_CHECK_HEADERS([ \
 	windows.h winsock2.h ws2tcpip.h \
 	versionhelpers.h \
 ])
-AC_CHECK_HEADERS([ \
+AC_CHECK_HEADERS_ONCE([ \
 	sys/time.h sys/ioctl.h sys/stat.h \
 	sys/mman.h sys/file.h sys/wait.h \
 	unistd.h signal.h libgen.h stropts.h \
@@ -661,29 +667,13 @@ AC_CHECK_FUNCS([ \
 	epoll_create \
 ])
 
-AC_CHECK_LIB(
-	[dl],
-	[dlopen],
-	[DL_LIBS="-ldl"]
-)
-AC_SUBST([DL_LIBS])
+# Shared Library Detection (Plugins) -------------------------------------------
+AX_SEARCH_LIBS(DL, [dlopen], [dl])
 
-AC_CHECK_LIB(
-	[nsl],
-	[inet_ntoa],
-	[SOCKETS_LIBS="${SOCKETS_LIBS} -lnsl"]
-)
-AC_CHECK_LIB(
-	[socket],
-	[socket],
-	[SOCKETS_LIBS="${SOCKETS_LIBS} -lsocket"]
-)
-AC_CHECK_LIB(
-	[resolv],
-	[gethostbyname],
-	[SOCKETS_LIBS="${SOCKETS_LIBS} -lresolv"]
-)
-AC_SUBST([SOCKETS_LIBS])
+# Socket Library Detection -----------------------------------------------------
+AX_SEARCH_LIBS(SOCKETS, [inet_ntoa], [nsl])
+AX_SEARCH_LIBS(SOCKETS, [socket], [socket])
+AX_SEARCH_LIBS(SOCKETS, [gethostbyname], [resolv])
 
 old_LIBS="${LIBS}"
 LIBS="${LIBS} ${SOCKETS_LIBS}"
@@ -737,14 +727,15 @@ else
 fi
 LIBS="${old_LIBS}"
 
-# we assume res_init() always exist, but need to find out *where*...
-AC_SEARCH_LIBS(__res_init, resolv bind, ,
-    AC_SEARCH_LIBS(res_9_init, resolv bind, ,
-	AC_SEARCH_LIBS(res_init, resolv bind, , )))
+# Resolver Lib Detection -------------------------------------------------------
+AX_SEARCH_LIBS(RESOLVER, __res_init, resolv bind)
+AX_SEARCH_LIBS(RESOLVER, res_9_init, resolv bind)
+AX_SEARCH_LIBS(RESOLVER, res_init, resolv bind)
+PACKAGE_LIBS="${PACKAGE_LIBS} $RESOLVER_LIBS"
 
 AC_ARG_VAR([TAP_CFLAGS], [C compiler flags for tap])
 old_CFLAGS="${CFLAGS}"
-CFLAGS="${CFLAGS} ${TAP_CFLAGS}"
+CFLAGS="${TAP_CFLAGS}"
 AC_CHECK_HEADERS(
 	[ \
 		net/if_tun.h net/tun/if_tun.h \
@@ -766,136 +757,91 @@ AC_CHECK_DECLS(
 CFLAGS="${old_CFLAGS}"
 test "${have_tap_header}" = "yes" || AC_MSG_ERROR([no tap header could be found])
 
-AC_CHECK_LIB(
-	[selinux],
-	[setcon],
-	[SELINUX_LIBS="-lselinux"]
-)
-AC_SUBST([SELINUX_LIBS])
+# Selinux Detection ------------------------------------------------------------
+AX_SEARCH_LIBS(SELINUX, [setcon], [selinux])
 
+# Pluggable Authentication Module Detection ------------------------------------
 AC_ARG_VAR([LIBPAM_CFLAGS], [C compiler flags for libpam])
 AC_ARG_VAR([LIBPAM_LIBS], [linker flags for libpam])
-if test -z "${LIBPAM_LIBS}"; then
-	AC_CHECK_LIB(
-		[pam],
-		[pam_start],
-		[LIBPAM_LIBS="-lpam"]
-	)
+AX_SEARCH_LIBS(LIBPAM, [pam_start], [pam])
+
+# Memory debug with valgrind Detection -----------------------------------------
+AX_CHECK_HEADER(VALGRIND, [valgrind/memcheck.h])
+
+# Memory debug with dmalloc Detection ------------------------------------------
+AX_SEARCH_LIBS(DMALLOC, [dmalloc_malloc], [dmalloc])
+
+# get around bug in dmalloc.h which is unaware that strdup is defined as a macro
+# Fixes configure issue "WARNING: dmalloc.h: present but cannot be compiled"
+# DMALLOC_CFLAGS="-D_HAVE_STRING_ARCH_strndup"
+AX_CHECK_HEADER(DMALLOC,[dmalloc.h])
+
+# Memory debug enabled ---------------------------------------------------------
+if test "${with_mem_check}" = "valgrind" -o "${enable_unit_tests}" = "all" ; then
+    test "$ac_cv_header_valgrind_memcheck_h" = "yes" || AC_MSG_ERROR([valgrind headers not found.])
+fi
+if test "${with_mem_check}" = "dmalloc" -o "${enable_unit_tests}" = "all" ; then
+    test "$ac_cv_search_dmalloc_malloc" != "no" || AC_MSG_ERROR([dmalloc library not found.])
+    test "$ac_cv_header_dmalloc_h" = "yes" || AC_MSG_ERROR([dmalloc headers not found.])
+fi
+
+if test "${with_mem_check}" = "ssl" -o "${enable_unit_tests}" = "all" ; then
+    test "$ac_cv_search_CRYPTO_mem_ctrl" != "no" || AC_MSG_ERROR([Memory Debugging function in $OpenSSL library not found.])
 fi
 
 case "${with_mem_check}" in
-	valgrind)
-		AC_CHECK_HEADERS(
-			[valgrind/memcheck.h],
-			[
-				CFLAGS="${CFLAGS} -g -fno-inline"
-				AC_DEFINE(
-					[USE_VALGRIND],
-					[1],
-					[Use valgrind memory debugging library]
-				)
-			],
-			[AC_MSG_ERROR([valgrind headers not found.])]
-		)
-		;;
-	dmalloc)
-		AC_CHECK_HEADERS(
-			[dmalloc.h],
-			[AC_CHECK_LIB(
-				[dmalloc],
-				[malloc],
-				[
-					LIBS="${LIBS} -ldmalloc"
-					AC_DEFINE(
-						[DMALLOC],
-						[1],
-						[Use dmalloc memory debugging library]
-					)
-				],
-				[AC_MSG_ERROR([dmalloc library not found.])]
-			)],
-			[AC_MSG_ERROR([dmalloc headers not found.])]
-		)
-		;;
-	ssl)
-		AC_CHECK_LIB(
-			[ssl],
-			[CRYPTO_mem_ctrl],
-			[
-				AC_DEFINE(
-					[CRYPTO_MDEBUG],
-					[1],
-					[Use memory debugging function in OpenSSL]
-				)
-				AC_MSG_NOTICE([NOTE: OpenSSL library must be compiled with CRYPTO_MDEBUG])
-			],
-			[AC_MSG_ERROR([Memory Debugging function in OpenSSL library not found.])]
-		)
-		;;
+  valgrind)
+    PACKAGE_CFLAGS="$PACKAGE_CFLAGS ${VALGRIND_CFLAGS} -g -fno-inline"
+    PACKAGE_LIBS="$PACKAGE_LIBS ${VALGRIND_LIBS} -g -fno-inline"
+    AC_DEFINE([USE_VALGRIND], [1], [Use valgrind memory debugging library])
+    ;;
+
+  dmalloc)
+    PACKAGE_LIBS="$PACKAGE_LIBS $DMALLOC_LIBS"
+    PACKAGE_CFLAGS="$PACKAGE_CFLAGS $DMALLOC_CFLAGS"
+    AC_DEFINE(DMALLOC, 1, [Use dmalloc memory debugging library])
+    ;;
+
+  ssl)
+    AC_DEFINE(CRYPTO_MDEBUG, 1, [Use memory debugging function in $OpenSSL])
+    AC_MSG_RESULT([NOTE: $OpenSSL library must be compiled with CRYPTO_MDEBUG])
+    ;;
 esac
 
-PKG_CHECK_MODULES(
-	[PKCS11_HELPER],
-	[libpkcs11-helper-1 >= 1.11],
-	[have_pkcs11_helper="yes"],
-	[]
-)
+# PKCS11 Helper Detection ------------------------------------------------------
+PKG_CHECK_MODULES([PKCS11_HELPER], [libpkcs11-helper-1 >= $required_pkcs11_ver_min],, [have_pkcs11_helper="no"])
 
-if test "${enable_crypto}" = "yes" -a "${with_crypto_library}" = "openssl"; then
-	AC_ARG_VAR([OPENSSL_CFLAGS], [C compiler flags for OpenSSL])
-	AC_ARG_VAR([OPENSSL_LIBS], [linker flags for OpenSSL])
+# P11KIT Library Detection -----------------------------------------------------
+PKG_CHECK_MODULES([P11KIT], [p11-kit-1], [proxy_module="`$PKG_CONFIG --variable=proxy_module p11-kit-1`"
+    AC_DEFINE_UNQUOTED([DEFAULT_PKCS11_MODULE], "${proxy_module}", [p11-kit proxy])],
+    [have_p11kit="no"])
 
-	if test -z "${OPENSSL_CFLAGS}" -a -z "${OPENSSL_LIBS}"; then
-		# if the user did not explicitly specify flags, try to autodetect
-		PKG_CHECK_MODULES(
-			[OPENSSL],
-			[libcrypto >= 0.9.8, libssl >= 0.9.8],
-	        [have_openssl="yes"],
-			[have_openssl="no"] # Provide if-not-found to prevent erroring out
-		)
+# OpenSSL SSL/Crypto Detection -------------------------------------------------
+PKG_CHECK_MODULES([OPENSSL], [libcrypto >= $required_openssl_ver_min, libssl >= $required_openssl_ver_min],,        [have_openssl="no"])
+dnl check if openssl has aead ciphers
+AX_SEARCH_LIBS(OPENSSL, [EVP_aes_256_gcm])
+AX_CHECK_HEADER(OPENSSL, [openssl/evp.h])
 
-		OPENSSL_LIBS=${OPENSSL_LIBS:--lssl -lcrypto}
-	fi
+# Memory debug with openssl Detection ------------------------------------------
+AX_SEARCH_LIBS(OPENSSL, CRYPTO_mem_ctrl, crypto)
 
-	saved_CFLAGS="${CFLAGS}"
-	saved_LIBS="${LIBS}"
-	CFLAGS="${CFLAGS} ${OPENSSL_CFLAGS}"
-	LIBS="${LIBS} ${OPENSSL_LIBS}"
+# OpenSSL Crypto Engine Detection-----------------------------------------------
+saved_CFLAGS="${CFLAGS}"
+saved_LIBS="${LIBS}"
+CFLAGS="${OPENSSL_CFLAGS}"
+LIBS="${OPENSSL_LIBS}"
+AC_CHECK_FUNCS([SSL_CTX_new EVP_CIPHER_CTX_set_key_length])
+AC_CHECK_FUNCS(
+    [ \
+        ENGINE_load_builtin_engines \
+        ENGINE_register_all_complete \
+    ], [have_openssl_engine=yes], [break])
 
-	AC_CHECK_FUNCS([SSL_CTX_new EVP_CIPHER_CTX_set_key_length],
-				   ,
-				   [AC_MSG_ERROR([openssl check failed])]
-	)
+if test "${have_openssl_engine}" = "yes"; then
+    AC_DEFINE([HAVE_OPENSSL_ENGINE], [1], [OpenSSL engine support available])
+fi
 
-	have_openssl_engine="yes"
-	AC_CHECK_FUNCS(
-		[ \
-			ENGINE_load_builtin_engines \
-			ENGINE_register_all_complete \
-			ENGINE_cleanup \
-		],
-		,
-		[have_openssl_engine="no"; break]
-	)
-	if test "${have_openssl_engine}" = "no"; then
-		AC_CHECK_DECL( [ENGINE_cleanup], [have_openssl_engine="yes"],,
-			[[
-				#include <openssl/engine.h>
-			]]
-		)
-	fi
-	if test "${have_openssl_engine}" = "yes"; then
-		AC_DEFINE([HAVE_OPENSSL_ENGINE], [1], [OpenSSL engine support available])
-	fi
-
-	have_crypto_aead_modes="yes"
-	AC_CHECK_FUNCS(
-		[EVP_aes_256_gcm],
-		,
-		[have_crypto_aead_modes="no"; break]
-	)
-
-	AC_CHECK_FUNCS(
+AC_CHECK_FUNCS(
 		[ \
 			HMAC_CTX_new \
 			HMAC_CTX_free \
@@ -938,243 +884,55 @@ if test "${enable_crypto}" = "yes" -a "${with_crypto_library}" = "openssl"; then
 		]
 	)
 
-	CFLAGS="${saved_CFLAGS}"
-	LIBS="${saved_LIBS}"
+CFLAGS="${saved_CFLAGS}"
+LIBS="${saved_LIBS}"
 
-	have_crypto="yes"
-	AC_DEFINE([ENABLE_CRYPTO_OPENSSL], [1], [Use OpenSSL library])
-	CRYPTO_CFLAGS="${OPENSSL_CFLAGS}"
-	CRYPTO_LIBS="${OPENSSL_LIBS}"
-elif test "${enable_crypto}" = "yes" -a "${with_crypto_library}" = "mbedtls"; then
-	AC_ARG_VAR([MBEDTLS_CFLAGS], [C compiler flags for mbedtls])
-	AC_ARG_VAR([MBEDTLS_LIBS], [linker flags for mbedtls])
+# MBEDTLS Detection ------------------------------------------------------------
+AC_ARG_VAR([MBEDTLS_CFLAGS], [C compiler flags for mbedtls])
+AC_ARG_VAR([MBEDTLS_LIBS], [linker flags for mbedtls])
+AX_SEARCH_LIBS(MBEDTLS, [mbedtls_ssl_init], [mbedtls],,,[${PKCS11_HELPER_LIBS}])
+AX_SEARCH_LIBS(MBEDTLS, [mbedtls_aes_crypt_cbc], [mbedcrypto],,,[${PKCS11_HELPER_LIBS}])
+AX_SEARCH_LIBS(MBEDTLS, [mbedtls_cipher_write_tag], [mbedcrypto],,,[${PKCS11_HELPER_LIBS}])
+AX_SEARCH_LIBS(MBEDTLS, [mbedtls_x509_serial_gets], [mbedx509],,,[${PKCS11_HELPER_LIBS}])
 
-	saved_CFLAGS="${CFLAGS}"
-	saved_LIBS="${LIBS}"
+AX_CHECK_HEADER(MBEDTLS, mbedtls/version.h, [[MBEDTLS_VERSION_NUMBER >= $required_mbedtls_ver_min_hex && MBEDTLS_VERSION_NUMBER < $required_mbedtls_ver_max_hex]])
+AX_CHECK_HEADER(MBEDTLS, mbedtls/config.h, [[defined(MBEDTLS_PKCS11_C)]])
 
-	if test -z "${MBEDTLS_CFLAGS}" -a -z "${MBEDTLS_LIBS}"; then
-		# if the user did not explicitly specify flags, try to autodetect
-		LIBS="${LIBS} -lmbedtls -lmbedx509 -lmbedcrypto"
-		AC_CHECK_LIB(
-			[mbedtls],
-			[mbedtls_ssl_init],
-			[MBEDTLS_LIBS="-lmbedtls -lmbedx509 -lmbedcrypto"],
-			[AC_MSG_ERROR([Could not find mbed TLS.])],
-			[${PKCS11_HELPER_LIBS}]
-		)
-	fi
-
-	CFLAGS="${MBEDTLS_CFLAGS} ${PKCS11_HELPER_CFLAGS} ${CFLAGS}"
-	LIBS="${MBEDTLS_LIBS} ${PKCS11_HELPER_LIBS} ${LIBS}"
-
-	AC_MSG_CHECKING([mbedtls version])
-	AC_COMPILE_IFELSE(
-		[AC_LANG_PROGRAM(
-			[[
-#include <mbedtls/version.h>
-			]],
-			[[
-#if MBEDTLS_VERSION_NUMBER < 0x02000000 || MBEDTLS_VERSION_NUMBER >= 0x03000000
-#error invalid version
-#endif
-			]]
-		)],
-		[AC_MSG_RESULT([ok])],
-		[AC_MSG_ERROR([mbed TLS 2.y.z required])]
-	)
-
-	mbedtls_with_pkcs11="no"
-	AC_COMPILE_IFELSE(
-		[AC_LANG_PROGRAM(
-			[[
-#include <mbedtls/config.h>
-			]],
-			[[
-#ifndef MBEDTLS_PKCS11_C
-#error pkcs11 wrapper missing
-#endif
-			]]
-		)],
-		mbedtls_with_pkcs11="yes")
-
-	AC_MSG_CHECKING([mbedtls pkcs11 support])
-	if test "${enable_pkcs11}" = "yes"; then
-		if test "${mbedtls_with_pkcs11}" = "yes"; then
-			AC_MSG_RESULT([ok])
-		else
-			AC_MSG_ERROR([mbedtls has no pkcs11 wrapper compiled in])
-		fi
-	else
-		if test "${mbedtls_with_pkcs11}" != "yes"; then
-			AC_MSG_RESULT([ok])
-		else
-			AC_MSG_ERROR([mbed TLS compiled with PKCS11, while OpenVPN is not])
-		fi
-	fi
-
-	have_crypto_aead_modes="yes"
-	AC_CHECK_FUNCS(
-		[ \
-			mbedtls_cipher_write_tag \
-			mbedtls_cipher_check_tag \
-		],
-		,
-		[have_crypto_aead_modes="no"; break]
-	)
-
-	CFLAGS="${saved_CFLAGS}"
-	LIBS="${saved_LIBS}"
-	have_crypto="yes"
-	AC_DEFINE([ENABLE_CRYPTO_MBEDTLS], [1], [Use mbed TLS library])
-	CRYPTO_CFLAGS="${MBEDTLS_CFLAGS}"
-	CRYPTO_LIBS="${MBEDTLS_LIBS}"
-elif test "${enable_crypto}" = "yes"; then
-	AC_MSG_ERROR([Invalid crypto library: ${with_crypto_library}])
-fi
-
+# LZO Compression Detection ----------------------------------------------------
 AC_ARG_VAR([LZO_CFLAGS], [C compiler flags for lzo])
 AC_ARG_VAR([LZO_LIBS], [linker flags for lzo])
-have_lzo="yes"
-if test -z "${LZO_LIBS}"; then
-	AC_CHECK_LIB(
-		[lzo2],
-		[lzo1x_1_15_compress],
-		[LZO_LIBS="-llzo2"],
-		[AC_CHECK_LIB(
-			[lzo],
-			[lzo1x_1_15_compress],
-			[LZO_LIBS="-llzo"],
-			[have_lzo="no"]
-		)]
-	)
-fi
-if test "${have_lzo}" = "yes"; then
-	saved_CFLAGS="${CFLAGS}"
-	CFLAGS="${CFLAGS} ${LZO_CFLAGS}"
-	AC_CHECK_HEADERS(
-		[lzo/lzoutil.h],
-		,
-		[AC_CHECK_HEADERS(
-			[lzoutil.h],
-			,
-			[AC_MSG_ERROR([lzoutil.h is missing])]
-		)]
-	)
-	AC_CHECK_HEADERS(
-		[lzo/lzo1x.h],
-		,
-		[AC_CHECK_HEADERS(
-			[lzo1x.h],
-			,
-			[AC_MSG_ERROR([lzo1x.h is missing])]
-		)]
-	)
-	CFLAGS="${saved_CFLAGS}"
-fi
+AX_SEARCH_LIBS(LZO, lzo1x_1_15_compress, [lzo2 lzo])
 
-dnl
-dnl check for LZ4 library
-dnl
+saved_CFLAGS="${CFLAGS}"
+CFLAGS="${LZO_CFLAGS}"
+AC_CHECK_HEADERS([lzo/lzo1x.h lzo1x.h lzo/lzoutil.h lzoutil.h] )
+CFLAGS="${saved_CFLAGS}"
 
-AC_ARG_VAR([LZ4_CFLAGS], [C compiler flags for lz4])
-AC_ARG_VAR([LZ4_LIBS], [linker flags for lz4])
-if test "$enable_lz4" = "yes" && test "$enable_comp_stub" = "no"; then
-    if test -z "${LZ4_CFLAGS}" -a -z "${LZ4_LIBS}"; then
-	# if the user did not explicitly specify flags, try to autodetect
-	PKG_CHECK_MODULES([LZ4],
-			  [liblz4 >= 1.7.1 liblz4 < 100],
-			  [have_lz4="yes"],
-			  [LZ4_LIBS="-llz4"] # If this fails, we will do another test next.
-					     # We also add set LZ4_LIBS otherwise the
-					     # linker will not know about the lz4 library
-	)
-    fi
+# LZ4 Compression Detection ----------------------------------------------------
+PKG_CHECK_MODULES([LZ4], [liblz4 >= $required_lz4_ver_min],,              [have_lz4="no"])
+AX_SEARCH_LIBS(LZ4, LZ4_compress_default, [lz4])
+AX_SEARCH_LIBS(LZ4, LZ4_decompress_safe, [lz4])
+AX_CHECK_HEADER(LZ4, lz4.h, [[LZ4_VERSION_NUMBER >= $required_lz4_ver_min_hex]])
 
-    saved_CFLAGS="${CFLAGS}"
-    saved_LIBS="${LIBS}"
-    CFLAGS="${CFLAGS} ${LZ4_CFLAGS}"
-    LIBS="${LIBS} ${LZ4_LIBS}"
+# Systemd Libraries Detection --------------------------------------------------
+PKG_CHECK_MODULES([libsystemd], [systemd libsystemd],,
+      [PKG_CHECK_MODULES([libsystemd], [libsystemd-daemon],, [true])])
+PKG_CHECK_EXISTS([libsystemd > 216],
+      [AC_DEFINE([SYSTEMD_NEWER_THAN_216], [1], [systemd is newer than v216])])
 
-    # If pkgconfig check failed or LZ4_CFLAGS/LZ4_LIBS env vars
-    # are used, check the version directly in the LZ4 include file
-    if test "${have_lz4}" != "yes"; then
-	AC_CHECK_HEADERS([lz4.h],
-			 [have_lz4h="yes"],
-			 [])
+AX_CHECK_HEADER(libsystemd, [systemd/sd-daemon.h])
 
-	if test "${have_lz4h}" = "yes" ; then
-	    AC_MSG_CHECKING([additionally if system LZ4 version >= 1.7.1])
-	    AC_COMPILE_IFELSE(
-		[AC_LANG_PROGRAM([[
-#include <lz4.h>
-				 ]],
-				 [[
-/* Version encoding: MMNNPP (Major miNor Patch) - see lz4.h for details */
-#if LZ4_VERSION_NUMBER < 10701L
-#error LZ4 is too old
-#endif
-				 ]]
-				)],
-		[
-		    AC_MSG_RESULT([ok])
-		    have_lz4="yes"
-		],
-		[AC_MSG_RESULT([system LZ4 library is too old])]
-	    )
-	fi
-    fi
-
-    # Double check we have a few needed functions
-    if test "${have_lz4}" = "yes" ; then
-	AC_CHECK_LIB([lz4],
-		     [LZ4_compress_default],
-		     [],
-		     [have_lz4="no"])
-	AC_CHECK_LIB([lz4],
-		     [LZ4_decompress_safe],
-		     [],
-		     [have_lz4="no"])
-    fi
-
-    if test "${have_lz4}" != "yes" ; then
-	AC_MSG_RESULT([		usable LZ4 library or header not found, using version in src/compat/compat-lz4.*])
-	AC_DEFINE([NEED_COMPAT_LZ4], [1], [use copy of LZ4 source in compat/])
-	LZ4_LIBS=""
-    fi
-    OPTIONAL_LZ4_CFLAGS="${LZ4_CFLAGS}"
-    OPTIONAL_LZ4_LIBS="${LZ4_LIBS}"
-    AC_DEFINE(ENABLE_LZ4, [1], [Enable LZ4 compression library])
-    CFLAGS="${saved_CFLAGS}"
-    LIBS="${saved_LIBS}"
-fi
-
-
-dnl
-dnl Check for systemd
-dnl
-AM_CONDITIONAL([ENABLE_SYSTEMD], [test "${enable_systemd}" = "yes"])
-if test "$enable_systemd" = "yes" ; then
-    PKG_CHECK_MODULES([libsystemd], [systemd libsystemd],
-                      [],
-                      [PKG_CHECK_MODULES([libsystemd], [libsystemd-daemon])]
-                      )
-
-    PKG_CHECK_EXISTS( [libsystemd > 216],
-                     [AC_DEFINE([SYSTEMD_NEWER_THAN_216], [1],
-                           [systemd is newer than v216])]
-                    )
-
-    AC_CHECK_HEADERS(systemd/sd-daemon.h,
-       ,
-       [
-	   AC_MSG_ERROR([systemd development headers not found.])
-       ])
-
+# Systemd Libraries Enabled ----------------------------------------------------
+if test "$enable_systemd" = "yes" -o "$enable_unit_tests" = "all" ; then
+	test "$ac_cv_header_systemd_sd_daemon_h" = "yes" ||
+        AC_MSG_ERROR([systemd development headers not found.])
     saved_LIBS="${LIBS}"
     LIBS="${LIBS} ${libsystemd_LIBS}"
     AC_CHECK_FUNCS([sd_booted], [], [AC_MSG_ERROR([systemd library is missing sd_booted()])])
-    OPTIONAL_SYSTEMD_LIBS="${libsystemd_LIBS}"
-    AC_DEFINE(ENABLE_SYSTEMD, 1, [Enable systemd integration])
+    if test "$enable_systemd" = "yes" ; then
+        PACKAGE_LIBS="$PACKAGE_LIBS ${libsystemd_LIBS}"
+        AC_DEFINE(ENABLE_SYSTEMD, 1, [Enable systemd integration])
+    fi
     LIBS="${saved_LIBS}"
 
     if test -n "${SYSTEMD_UNIT_DIR}"; then
@@ -1189,8 +947,9 @@ if test "$enable_systemd" = "yes" ; then
         tmpfilesdir="\${libdir}/tmpfiles.d"
     fi
 fi
+AM_CONDITIONAL([ENABLE_SYSTEMD], [test "${enable_systemd}" = "yes"])
 
-
+# GIT versioning Detection -----------------------------------------------------
 AC_MSG_CHECKING([git checkout])
 GIT_CHECKOUT="no"
 if test -n "${GIT}" -a -d "${srcdir}/.git"; then
@@ -1199,6 +958,7 @@ if test -n "${GIT}" -a -d "${srcdir}/.git"; then
 fi
 AC_MSG_RESULT([${GIT_CHECKOUT}])
 
+# OS Path Separator Detection --------------------------------------------------
 if test -n "${SP_PLATFORM_WINDOWS}"; then
 	AC_DEFINE_UNQUOTED([PATH_SEPARATOR], ['\\\\'], [Path separator]) #"
 	AC_DEFINE_UNQUOTED([PATH_SEPARATOR_STR], ["\\\\"], [Path separator]) #"
@@ -1207,15 +967,17 @@ else
 	AC_DEFINE_UNQUOTED([PATH_SEPARATOR_STR], ["/"], [Path separator])
 fi
 
+# Options Consistency Checks ---------------------------------------------------
 dnl enable --x509-username-field feature if requested
 if test "${enable_x509_alt_username}" = "yes"; then
 	if test "${with_crypto_library}" = "mbedtls" ; then
-		AC_MSG_ERROR([mbed TLS does not support the --x509-username-field feature])
+		AC_MSG_ERROR([$mbedtls does not support the --x509-username-field feature])
 	fi
 
 	AC_DEFINE([ENABLE_X509ALTUSERNAME], [1], [Enable --x509-username-field feature])
 fi
 
+# Package build configuration --------------------------------------------------
 test "${ac_cv_header_sys_uio_h}" = "yes" && AC_DEFINE([HAVE_IOVEC], [1], [struct iovec needed for IPv6 support])
 test "${enable_server}" = "no" && AC_DEFINE([ENABLE_CLIENT_ONLY], [1], [Enable client capability only])
 test "${enable_management}" = "yes" && AC_DEFINE([ENABLE_MANAGEMENT], [1], [Enable management server capability])
@@ -1228,15 +990,67 @@ test "${enable_def_auth}" = "yes" && AC_DEFINE([ENABLE_DEF_AUTH], [1], [Enable d
 test "${enable_pf}" = "yes" && AC_DEFINE([ENABLE_PF], [1], [Enable internal packet filter])
 test "${enable_strict_options}" = "yes" && AC_DEFINE([ENABLE_STRICT_OPTIONS_CHECK], [1], [Enable strict options check between peers])
 
-if test "${enable_crypto}" = "yes"; then
-	test "${have_crypto}" != "yes" && AC_MSG_ERROR([${with_crypto_library} crypto is required but missing])
-	test "${enable_crypto_ofb_cfb}" = "yes" && AC_DEFINE([ENABLE_OFB_CFB_MODE], [1], [Enable OFB and CFB cipher modes])
-	test "${have_crypto_aead_modes}" = "yes" && AC_DEFINE([HAVE_AEAD_CIPHER_MODES], [1], [Use crypto library])
-	OPTIONAL_CRYPTO_CFLAGS="${OPTIONAL_CRYPTO_CFLAGS} ${CRYPTO_CFLAGS}"
-	OPTIONAL_CRYPTO_LIBS="${OPTIONAL_CRYPTO_LIBS} ${CRYPTO_LIBS}"
-	AC_DEFINE([ENABLE_CRYPTO], [1], [Enable crypto library])
+# Crypto/SSL Library enabled ---------------------------------------------------
+if test "${enable_crypto}" = "yes" -o "${enable_unit_tests}" = "all" ; then
+    if test "${with_crypto_library}" = "openssl" -o "${enable_unit_tests}" = "all" ; then
+        test "$have_openssl" = "no" &&
+                    AC_MSG_ERROR([$OpenSSL Crypto library not found])
+        test "$ac_cv_header_openssl_evp_h" = "yes" ||
+                    AC_MSG_ERROR([$OpenSSL Crypto header not found])
+    fi
+    if test "${with_crypto_library}" = "mbedtls" -o "${enable_unit_tests}" = "all" ; then
+        test "$ac_cv_search_mbedtls_aes_crypt_cbc" != "no" || AC_MSG_ERROR([$mbedtls Crypto library not found])
+        test "$ac_cv_search_mbedtls_ssl_init" != "no" || AC_MSG_ERROR([$mbedtls SSL library not found])
+        test "$ac_cv_search_mbedtls_x509_serial_gets" != "no" || AC_MSG_ERROR([$mbedtls X509 library not found])
+        test "$ac_cv_header_mbedtls_version_h" = "yes" || AC_MSG_ERROR([$mbedtls headers not found])
+    fi
+    if test "${enable_unit_tests}" = "all" ; then
+    	test "${ac_cv_search_mbedtls_cipher_write_tag}" != "no" || AC_MSG_ERROR([$mbedtls AEAD ciphers not available for testing])
+        test "${ac_cv_search_EVP_aes_256_gcm}" != "no" || AC_MSG_ERROR([$OpenSSL AEAD ciphers not available for testing])
+    fi
+
+    if test "${enable_unit_tests}" != "all" ; then
+       test "$ac_cv_header_mbedtls_config_h" = "no" -a "${enable_pkcs11}" = "yes" &&
+                    AC_MSG_ERROR([PKCS11 wrapper not enabled in mbedtls build, did you mean --disable-pkcs11 ?])
+       test "$ac_cv_header_mbedtls_config_h" = "yes" -a "${enable_pkcs11}" = "no" &&
+                    AC_MSG_ERROR([--enable-pkcs11 is required by $mbedtls configuration])
+                    # TODO: Should OpenVPN automatically follow mbedtls' pkcs11 config?
+                    # It seems the pkcs11 choice is the mbedtls packager's, not OpenVPN packager's
+                    # This would be done with:
+                    # enable_pkcs11=$ac_cv_header_mbedtls_config_h
+    else
+        AC_MSG_WARN([TODO - The integration test suite should test both pkcs11 and non- versions])
+        AC_MSG_WARN([Add MBEDTLS_PKCS11_LIBS and MBEDTLS_NOPKCS11_LIBS detections])
+        AC_MSG_WARN([Otherwise one of these modes is not covered by the test suite])
+    fi
 fi
 
+case "${with_crypto_library}" in
+  openssl)
+		CRYPTO_CFLAGS="${OPENSSL_CFLAGS}"
+		CRYPTO_LIBS="${OPENSSL_LIBS}"
+		AC_DEFINE([ENABLE_CRYPTO_OPENSSL], [1], [Use $OpenSSL library for Crypto/SSL ops])
+		;;
+  mbedtls)
+		CRYPTO_CFLAGS="${MBEDTLS_CFLAGS}"
+		CRYPTO_LIBS="${MBEDTLS_LIBS}"
+		AC_DEFINE([ENABLE_CRYPTO_MBEDTLS], [1], [Use $mbedtls library for Crypto/SSL ops])
+		;;
+esac
+
+if test "${enable_crypto}" = "yes"; then
+	test "${enable_crypto_ofb_cfb}" = "yes" && AC_DEFINE([ENABLE_OFB_CFB_MODE], [1], [Enable OFB and CFB cipher modes])
+	test "${with_crypto_library}" = "mbedtls" -a "${ac_cv_search_mbedtls_cipher_write_tag}" != "no" && AC_DEFINE([HAVE_AEAD_CIPHER_MODES], [1], [$mbedtls has AEAD ciphers])
+	test "${with_crypto_library}" = "openssl" -a "${ac_cv_search_EVP_aes_256_gcm}" != "no" && AC_DEFINE([HAVE_AEAD_CIPHER_MODES], [1], [$OpenSSL has AEAD ciphers])
+
+    if test "${enable_crypto}" = "yes"; then
+        OPTIONAL_CRYPTO_CFLAGS="${CRYPTO_CFLAGS}"
+        OPTIONAL_CRYPTO_LIBS="${CRYPTO_LIBS}"
+        AC_DEFINE([ENABLE_CRYPTO], [1], [Enable crypto library])
+    fi
+fi
+
+# Plugin Features enabled ------------------------------------------------------
 if test "${enable_plugins}" = "yes"; then
 	OPTIONAL_DL_LIBS="${DL_LIBS}"
 	AC_DEFINE([ENABLE_PLUGIN], [1], [Enable plug-in support])
@@ -1245,6 +1059,7 @@ else
 	enable_plugin_down_root="no"
 fi
 
+# OS Utilities enabled ---------------------------------------------------------
 if test "${enable_iproute2}" = "yes"; then
 	test -z "${IPROUTE}" && AC_MSG_ERROR([ip utility is required but missing])
 	AC_DEFINE([ENABLE_IPROUTE], [1], [enable iproute2 support])
@@ -1255,84 +1070,124 @@ else
 	fi
 fi
 
-if test "${enable_selinux}" = "yes"; then
-	test -z "${SELINUX_LIBS}" && AC_MSG_ERROR([libselinux required but missing])
-	OPTIONAL_SELINUX_LIBS="${SELINUX_LIBS}"
-	AC_DEFINE([ENABLE_SELINUX], [1], [SELinux support])
+# Selinux Features enabled -----------------------------------------------------
+if test "${enable_selinux}" = "yes" -o "${enable_unit_tests}" = "all"; then
+	test "$ac_cv_search_setcon" != "no" || AC_MSG_ERROR([libselinux required but missing])
+    if test "${enable_selinux}" = "yes"; then
+        OPTIONAL_SELINUX_LIBS="$SELINUX_LIBS"
+        AC_DEFINE([ENABLE_SELINUX], [1], [SELinux support])
+    fi
 fi
 
-if test "${enable_lzo}" = "yes"; then
-	test "${have_lzo}" != "yes" && AC_MSG_ERROR([lzo enabled but missing])
-	OPTIONAL_LZO_CFLAGS="${LZO_CFLAGS}"
-	OPTIONAL_LZO_LIBS="${LZO_LIBS}"
-	AC_DEFINE([ENABLE_LZO], [1], [Enable LZO compression library])
-fi
-if test "${enable_comp_stub}" = "yes"; then
-	test "${enable_lzo}" = "yes" && AC_MSG_ERROR([Cannot have both comp stub and lzo enabled (use --disable-lzo)])
-	test "${enable_lz4}" = "yes" && AC_MSG_ERROR([Cannot have both comp stub and LZ4 enabled (use --disable-lz4)])
-	AC_DEFINE([ENABLE_COMP_STUB], [1], [Enable compression stub capability])
+
+# Compression Consistency Check ------------------------------------------------
+if test "${enable_comp_stub}" = "yes" -o "${enable_unit_tests}" = "all"; then
+	test "${enable_lzo}" = "yes" -a "${enable_comp_stub}" = "yes" && AC_MSG_ERROR([Cannot have both comp stub and lzo enabled (use --disable-lzo)])
+	test "${enable_lz4}" = "yes" -a "${enable_comp_stub}" = "yes" && AC_MSG_ERROR([Cannot have both comp stub and LZ4 enabled (use --disable-lz4)])
+    if test "${enable_lzo_stub}" = "yes"; then
+        AC_DEFINE([ENABLE_COMP_STUB], [1], [Enable compression stub capability])
+    fi
 fi
 
-if test "${enable_pkcs11}" = "yes"; then
-	test "${have_pkcs11_helper}" != "yes" && AC_MSG_ERROR([PKCS11 enabled but libpkcs11-helper is missing])
-	test "${enable_crypto}" != "yes" && AC_MSG_ERROR([PKCS11 can be enabled only if crypto is enabled])
-	OPTIONAL_PKCS11_HELPER_CFLAGS="${PKCS11_HELPER_CFLAGS}"
-	OPTIONAL_PKCS11_HELPER_LIBS="${PKCS11_HELPER_LIBS}"
-	AC_DEFINE([ENABLE_PKCS11], [1], [Enable PKCS11])
-	PKG_CHECK_MODULES(
-		[P11KIT],
-		[p11-kit-1],
-		[proxy_module="`$PKG_CONFIG --variable=proxy_module p11-kit-1`"
-		 AC_DEFINE_UNQUOTED([DEFAULT_PKCS11_MODULE], "${proxy_module}", [p11-kit proxy])],
-		[]
-	)
+# LZO Compression enabled ------------------------------------------------------
+if test "${enable_lzo}" = "yes" -o "${enable_unit_tests}" = "all"; then
+	test "$ac_cv_search_lzo1x_1_15_compress" != "no" || AC_MSG_ERROR([lzo enabled but missing])
+    test "$ac_cv_header_lzo_lzoutil_h" = "yes" || AC_MSG_ERROR([lzoutil.h is missing])
+    test "$ac_cv_header_lzo_lzo1x_h" = "yes" -o "$ac_cv_header_lzo1x_h" = "yes" || AC_MSG_ERROR([LZO headers were not found])
+    if test "${enable_lzo}" = "yes"; then
+        OPTIONAL_LZO_CFLAGS="${LZO_CFLAGS}"
+        OPTIONAL_LZO_LIBS="${LZO_LIBS}"
+        AC_DEFINE([ENABLE_LZO], [1], [Enable LZO compression library])
+    fi
 fi
 
-AC_DEFUN([ACL_CHECK_ADD_COMPILE_FLAGS], [
-    old_cflags="$CFLAGS"
-    CFLAGS="$1 $CFLAGS"
-    AC_MSG_CHECKING([whether the compiler acceppts $1])
-    AC_COMPILE_IFELSE([AC_LANG_PROGRAM()], [AC_MSG_RESULT([yes])],
-        [AC_MSG_RESULT([no]); CFLAGS="$old_cflags"])]
-)
+# LZ4 Compression enabled ------------------------------------------------------
+if test "${enable_lz4}" = "yes" -o "${enable_unit_tests}" = "all"; then
+	test "$ac_cv_search_LZ4_compress_default" != no -a "$ac_cv_search_LZ4_decompress_safe" != no || test "$have_lz4" != "no" || AC_MSG_ERROR([$lz4 enabled but missing])
+	test "$ac_cv_header_lz4_h" = "yes" || AC_MSG_ERROR([lz4.h headers missing])
+    if test "${enable_lz4}" = "yes"; then
+        AC_DEFINE(ENABLE_LZ4, [1], [Enable $lz4 compression library])
+        OPTIONAL_LZ4_CFLAGS="${LZ4_CFLAGS}"
+        OPTIONAL_LZ4_LIBS="${LZ4_LIBS}"
+    fi
+fi
 
-ACL_CHECK_ADD_COMPILE_FLAGS([-Wno-unused-function])
-ACL_CHECK_ADD_COMPILE_FLAGS([-Wno-unused-parameter])
-ACL_CHECK_ADD_COMPILE_FLAGS([-Wall])
+# PKCS11 Consistency Check -----------------------------------------------------
+if test "${enable_crypto}" != "yes" -a "${enable_pkcs11}" = "yes"; then
+	AC_MSG_ERROR([PKCS11 can be enabled only if crypto is enabled])
+fi
+if test "${enable_pkcs11}" = "yes" -o "${enable_unit_tests}" = "all"; then
+	test "$have_pkcs11_helper" = "no" && AC_MSG_ERROR([PKCS11 enabled but $PKCS11_HELPER is missing])
+	test "$have_p11kit" = "no" && AC_MSG_ERROR([PKCS11 enabled but P11-kit is missing])
+fi
 
+# PKCS11 Features enabled ------------------------------------------------------
+if test "${enable_pkcs11}" = "yes" -o "${enable_unit_tests}" = "all"; then
+    if test "${enable_pkcs11}" = "yes"; then
+        APP_CFLAGS="${APP_CFLAGS} ${PKCS11_HELPER_CFLAGS}"
+        APP_LIBS="${APP_LIBS} ${PKCS11_HELPER_LIBS}"
+        AC_DEFINE([ENABLE_PKCS11], [1], [Enable $PKCS11_HELPER])
+    fi
+fi
+
+# Compiler warn abilities ------------------------------------------------------
+ADD_CFLAGS(PACKAGE, [-Wno-unused-function])
+ADD_CFLAGS(PACKAGE, [-Wno-unused-parameter])
+ADD_CFLAGS(PACKAGE, [-Wall])
+
+# Build options ----------------------------------------------------------------
 if test "${enable_pedantic}" = "yes"; then
 	enable_strict="yes"
-	CFLAGS="${CFLAGS} -pedantic"
+	PACKAGE_CFLAGS="${PACKAGE_CFLAGS} -pedantic"
 	AC_DEFINE([PEDANTIC], [1], [Enable pedantic mode])
 fi
 if test "${enable_strict}" = "yes"; then
-	CFLAGS="${CFLAGS} -Wsign-compare -Wuninitialized"
+	PACKAGE_CFLAGS="${PACKAGE_CFLAGS} -Wsign-compare -Wuninitialized"
 fi
 if test "${enable_werror}" = "yes"; then
-	CFLAGS="${CFLAGS} -Werror"
+	PACKAGE_CFLAGS="${PACKAGE_CFLAGS} -Werror"
 fi
 
 if test "${WIN32}" = "yes"; then
 	test -z "${MAN2HTML}" && AC_MSG_ERROR([man2html is required for win32])
 fi
 
+
+# Set -std=c99 unless user already specified a -std=
+case "${CFLAGS}" in
+  *-std=*) ;;
+  *)       CFLAGS="${CFLAGS} -std=c99" ;;
+esac
+
+# Auth Plugin enabled  ---------------------------------------------------------
+if test "${enable_plugin_auth_pam}" = "yes" -o "${enable_unit_tests}" = "all" ; then
+    if test "${enable_pam_dlopen}" = "yes" -o "${enable_unit_tests}" = "all"; then
+        test "$ac_cv_search_pam_start" != no || AC_MSG_ERROR([libpam required but missing])
+        AC_MSG_WARN([USE_PAM_DLOPEN defined in package config but not used in source])
+    fi
+    if test "${enable_pam_dlopen}" = "no" -o "${enable_unit_tests}" = "all" ; then
+        test "$ac_cv_search_dlopen" != "no" || AC_MSG_ERROR([dynamic linker library required but missing])
+    fi
+fi
 if test "${enable_plugin_auth_pam}" = "yes"; then
-	PLUGIN_AUTH_PAM_CFLAGS="${LIBPAM_CFLAGS}"
-	if test "${enable_pam_dlopen}" = "yes"; then
-		AC_DEFINE([USE_PAM_DLOPEN], [1], [dlopen libpam])
-		PLUGIN_AUTH_PAM_LIBS="${DL_LIBS}"
-	else
-		test -z "${LIBPAM_LIBS}" && AC_MSG_ERROR([libpam required but missing])
-		PLUGIN_AUTH_PAM_LIBS="${LIBPAM_LIBS}"
-	fi
+    PLUGIN_AUTH_PAM_CFLAGS="${LIBPAM_CFLAGS}"
+    if test "${enable_pam_dlopen}" = "yes"; then
+        AC_DEFINE([USE_PAM_DLOPEN], [1], [dlopen libpam])
+        PLUGIN_AUTH_PAM_LIBS="${DL_LIBS}"
+    else
+        PLUGIN_AUTH_PAM_LIBS="${LIBPAM_LIBS}"
+    fi
 fi
 
-if test "${enable_async_push}" = "yes"; then
-	AC_CHECK_HEADERS(
-		[sys/inotify.h],
-		AC_DEFINE([ENABLE_ASYNC_PUSH], [1], [Enable async push]),
-		AC_MSG_ERROR([inotify.h not found.])
-	)
+# Async Push Detection ---------------------------------------------------------
+AC_CHECK_HEADERS([sys/inotify.h])
+
+# Async Push Enabled -----------------------------------------------------------
+if test "${enable_async_push}" = "yes" -o "${enable_unit_tests}" = "all"; then
+    test "$ac_cv_header_sys_inotify_h" = "yes" || AC_MSG_ERROR([inotify.h not found.])
+    if test "${enable_async_push}" = "yes" ; then
+        AC_DEFINE([ENABLE_ASYNC_PUSH], [1], [Enable async push])
+    fi
 fi
 
 CONFIGURE_DEFINES="`set | grep '^enable_.*=' ; set | grep '^with_.*='`"
@@ -1360,6 +1215,13 @@ AC_SUBST([OPTIONAL_SYSTEMD_LIBS])
 AC_SUBST([OPTIONAL_PKCS11_HELPER_CFLAGS])
 AC_SUBST([OPTIONAL_PKCS11_HELPER_LIBS])
 
+AC_SUBST([PACKAGE_LIBS])
+AC_SUBST([PACKAGE_CFLAGS])
+AC_SUBST([APP_CFLAGS])
+AC_SUBST([APP_LIBS])
+AC_SUBST([PLUGIN_CFLAGS])
+AC_SUBST([PLUGIN_LIBS])
+
 AC_SUBST([PLUGIN_AUTH_PAM_CFLAGS])
 AC_SUBST([PLUGIN_AUTH_PAM_LIBS])
 
@@ -1377,28 +1239,11 @@ AC_SUBST([sampledir])
 AC_SUBST([systemdunitdir])
 AC_SUBST([tmpfilesdir])
 
-TEST_LDFLAGS="${OPTIONAL_CRYPTO_LIBS} ${OPTIONAL_PKCS11_HELPER_LIBS} -lcmocka -L\$(top_builddir)/vendor/dist/lib -Wl,-rpath,\$(top_builddir)/vendor/dist/lib"
-TEST_CFLAGS="${OPTIONAL_CRYPTO_CFLAGS} ${OPTIONAL_PKCS11_HELPER_CFLAGS} -I\$(top_srcdir)/include -I\$(top_builddir)/vendor/dist/include"
-
 AC_SUBST([TEST_LDFLAGS])
+AC_SUBST([TEST_CPPFLAGS])
 AC_SUBST([TEST_CFLAGS])
 
-# Check if cmake is available and cmocka git submodule is initialized,
-# needed for unit testing
-AC_CHECK_PROGS([CMAKE], [cmake])
-if test -n "${CMAKE}"; then
-   if test -f "${srcdir}/vendor/cmocka/CMakeLists.txt"; then
-      AM_CONDITIONAL([CMOCKA_INITIALIZED], [true])
-   else
-      AM_CONDITIONAL([CMOCKA_INITIALIZED], [false])
-      AC_MSG_RESULT([!! WARNING !! The cmoka git submodule has not been initialized or updated.  Unit testing cannot be performed.])
-   fi
-else
-   AC_MSG_RESULT([!! WARNING !! CMake is NOT available.  Unit testing cannot be performed.])
-   AM_CONDITIONAL([CMOCKA_INITIALIZED], [false])
-fi
-
-
+# Output/generated files -------------------------------------------------------
 AC_CONFIG_FILES([
 	version.sh
 	Makefile
@@ -1415,15 +1260,242 @@ AC_CONFIG_FILES([
 	src/plugins/Makefile
 	src/plugins/auth-pam/Makefile
 	src/plugins/down-root/Makefile
-	tests/Makefile
-        tests/unit_tests/Makefile
-        tests/unit_tests/example_test/Makefile
-        tests/unit_tests/openvpn/Makefile
-        tests/unit_tests/plugins/Makefile
-        tests/unit_tests/plugins/auth-pam/Makefile
-        vendor/Makefile
 	sample/Makefile
 	doc/Makefile
+    tests/Makefile
 ])
 AC_CONFIG_FILES([tests/t_client.sh], [chmod +x tests/t_client.sh])
+
+# ######################## Tree-Structure Versioning ###########################
+dnl # As the project evolves, the source may be reorganized repeatedly, with files
+dnl # moved or renamed, directories created or removed, etc.
+dnl # In order to inform the test suite (which must work on any source structure),
+dnl # a $tree_structure_version variable is tracked. Based on this variable,
+dnl # the testsuite defines the source paths appropriately.
+dnl # When the source is reorganized next, this variable should be explicitly set,
+dnl # in and tests/srcpaths.inc file in the tests repo should be updated appropriately.
+dnl # Adding new components (eg. src/plugins), without moving existing sources, is
+dnl # not reorganizing, so a new TREE_VERSION conditional is not needed. In this case,
+dnl # simply add "plugins_srcdir=..." to tests/srcpaths.inc under the current
+dnl # TREE_VERSION conditional.
+# The early versions of the project did not have this infrastructure, so a
+# $tree_structure_version is detected.
+
+# Legacy trees have to be detected.
+if test "$ac_unique_file" = "syshead.h" ; then
+ tree_structure_version="2.0"
+elif test "$ac_unique_file" = "src/openvpn/syshead.h" ; then
+  if expr "$ac_config_headers" : '.* include/openvpn-plugin.h' >/dev/null ; then
+    tree_structure_version="2.4"
+  else
+    tree_structure_version="2.3"
+  fi
+fi
+# Do not add more. New trees set the tree_structure_version directly, below.
+
+# tree_structure_version="5.7"
+AM_CONDITIONAL([TREE_VERSION_2_0], [test "$tree_structure_version" = "2.0"])
+AM_CONDITIONAL([TREE_VERSION_2_3], [test "$tree_structure_version" = "2.3"])
+AM_CONDITIONAL([TREE_VERSION_2_4], [test "$tree_structure_version" = "2.4"])
+AM_CONDITIONAL([TREE_VERSION_FUTURE_EXAMPLE], [test "$tree_structure_version" = "5.7"])
+# #################### END Tree-Structure Versioning ###########################
+
+# ######################## Feature Implementations ############################
+# 1. When work a new feature starts, add both an IMPLEMENTED_{FEATURE}
+#    conditional here, and a UNIT_TESTED_{FEATURE} further below, both set to
+#    [false].
+# 2. Commit the two conditionals to both the source repo and the test repo.
+# 3. Implement the unit test. Toggle UNIT_TESTED_{FEATURE} to [true]
+# 4. Commit the unit test and the UNIT_TESTED_{FEATURE} conditional to the
+#    test repo.
+# 5. Implement the feature. Toggle IMPLEMENTED_{FEATURE} to [true]
+# 6. Commit the implementation and the IMPLEMENTED_{FEATURE} conditional *ONLY*
+#    to the source repo.
+# 7. Test, debug, improve the unit test until coverage is good enough.
+# 8. Commit implementation fixes to the source tree.
+# 9. Commit unit test fixes to the test tree.
+# 10. Merge unit tree into implementation tree.
+# 11. When features are obsolete/removed, toggle only IMPLEMENTED_{FEATURE} to
+#     false, remove the integration, and commit. Do not remove the unit test,
+#     it is still useful to test and maintain the obsolete feature in old
+#     releases. The test will no longer run on new releases, where the FEATURE
+#     is no longer IMPLEMENTED_{}.
+#
+# Adding tests for pre-existing features. The implementations must be detected,
+# cannot be assumed either false nor true. Then, the unit-test will be
+# automatically disabled when merged into source trees pre-dating the feature's
+# introduction.
+# eg, check that the implementation source file exists in the same directory as
+# the AC_CONFIG_SRCDIR() item above:
+# AM_CONDITIONAL([IMPLEMENTED_base64], [test -f $(dirname "$srcdir/$ac_unique_file")/base64.c])
+#
+# IMPORTANT: If you are changing an older branch, such that the "grep-ed"
+# match signature will no longer match, do not update the signature.
+# Instead, replace it with "AM_CONDITIONAL([IMPLEMENTED_xxx_Y_Z], [true])",
+# and commit it to the source tree, in the same commit as your source changes,
+# but *not* the tests repo.
+# This way, if your bug fix gets merged into another branch, the detection
+# will be updated as well, and the test suite will continue working in that
+# destination branch.
+#
+# At the end of this process, the source repo/branch (eg, "master") will contain
+# a tested implementation and the unit tests, and the test repo ("tests") will
+# contain only the unit tests, in a form that can be merged to any branch of the
+# source tree, including old releases, to backtest old code with the newest
+# tests.
+# In the unit test tree, add the following to test a feature in a backwards
+# compatible way (ie, skipping test where the feature is not implemented);
+# in tests/Makefile.am:
+#
+# if UNIT_TESTED_feature
+# SUBDIRS += unit/feature
+# endif
+
+AM_CONDITIONAL([IMPLEMENTED_base64_2_0],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/base64.c &&
+    ${GREP} '^base64_decode(const char \*str, void \*data)$' $(dirname "$srcdir/$ac_unique_file")/base64.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_base64_2_2],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/base64.c &&
+    ${GREP} '^base64_decode(const char \*str, void \*data, int size)$' $(dirname "$srcdir/$ac_unique_file")/base64.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_base64_2_3],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/base64.c &&
+    ${GREP} '^openvpn_base64_decode(const char \*str, void \*data, int size)$' $(dirname "$srcdir/$ac_unique_file")/base64.c >/dev/null])
+
+AM_CONDITIONAL([IMPLEMENTED_tls_crypt_2_4],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c &&
+    ! ${GREP} '^tls_crypt_v2_write_client_key_file(const char \*filename$' $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_tls_crypt_2_5],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c &&
+    ${GREP} '^tls_crypt_v2_write_client_key_file(const char \*filename$' $(dirname "$srcdir/$ac_unique_file")/tls_crypt.c >/dev/null])
+
+AM_CONDITIONAL([IMPLEMENTED_rfc4821], [false])
+
+AM_CONDITIONAL([IMPLEMENTED_buffer_2_0],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
+    ${GREP} '^char_class (const char c, const unsigned int flags)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_buffer_2_2],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
+    ${GREP} '^char_class (const unsigned char c, const unsigned int flags)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_buffer_2_3],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
+    ${GREP} '^buf_puts(struct buffer \*buf, const char \*str)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_buffer_2_4],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
+    ${GREP} '^gc_addspecial(void \*addr, void(free_function)(void \*), struct gc_arena \*a)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_buffer_2_4_5],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.h &&
+    ${GREP} '^void buffer_list_push(struct buffer_list \*ol, const char \*str);$' $(dirname "$srcdir/$ac_unique_file")/buffer.h >/dev/null])
+AM_CONDITIONAL([IMPLEMENTED_buffer_2_5],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/buffer.c &&
+    ${GREP} '^buffer_write_file(const char \*filename, const struct buffer \*buf)$' $(dirname "$srcdir/$ac_unique_file")/buffer.c])
+
+AM_CONDITIONAL([IMPLEMENTED_mtu_2_0],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/mtu.c &&
+    ${GREP} '^frame_set_mtu_dynamic' $(dirname "$srcdir/$ac_unique_file")/mtu.c])
+AM_CONDITIONAL([IMPLEMENTED_mtu_2_4],
+    [test -f $(dirname "$srcdir/$ac_unique_file")/mtu.c &&
+    ${GREP} '^frame_init_mssfix' $(dirname "$srcdir/$ac_unique_file")/mtu.c])
+AM_CONDITIONAL([IMPLEMENTED_mtu2], [false])
+
+AM_CONDITIONAL([IMPLEMENTED_sitnl_2_5], [test -f $(dirname "$srcdir/$ac_unique_file")/networking_sitnl.c])
+
+# #################### End Feature Implementations ############################
+
+# ######################## Buildable Packages #################################
+AM_CONDITIONAL([INTEGRATED_openvpn], [expr "$PACKAGE_STRING" : 'OpenVPN ' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_openvpn_2_0], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.0\.' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_openvpn_2_1], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.1\.' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_openvpn_2_2], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.2\.' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_openvpn_2_3], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.3\.' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_openvpn_2_4], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.4\.' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_openvpn_2_5], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.5\.' >/dev/null])
+
+AM_CONDITIONAL([INTEGRATED_ovpn], [expr "$PACKAGE_STRING" : 'OVPN ' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_ovpn_1_0], [expr "$PACKAGE_STRING" : 'OVPN 1\.0\.' >/dev/null])
+
+# ######################## End Buildable Packages #############################
+
+# ####################### Feature Unit Tests ##################################
+# Once a test is implemented for a feature, toggle UNIT_TESTED_{feature} to true
+# Never remove or turn UNIT_TESTED_{feature} to false after it's turned true.
+# Removing it would break old builds ("Makefile.am:xxx: UNIT_TESTED_{feature}
+# does not appear in AM_CONDITIONAL") when the test branch is merged there,
+# as would turning it false (unresolved symbols at link time).
+# In the source tree, add the following to include a feature:
+# In src/openvpn/Makefile.am
+#
+#   if UNIT_TESTED_feature
+#    openvpn_SOURCES += feature.c feature.h
+#   endif
+
+AM_COND_IF([IMPLEMENTED_base64_2_0], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_base64_2_2], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_base64_2_3], [implemented=yes])
+AM_CONDITIONAL([UNIT_TESTED_base64], [test "$implemented" = "yes" && unset implemented])
+
+AM_COND_IF([IMPLEMENTED_tls_crypt_2_4], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_tls_crypt_2_5], [implemented=yes])
+#
+# NOTE: It is wrong to not test the tls_crypt implementation if the current build
+# configuration does not enable it. I am only demonstrating a straight-up port
+# of a unit test from tests/unit_tests to tests/unit. This is the old test-suite
+# behaviour, ie, if a feature is not used, it's not tested. If it's broken
+# by a patch, the breakage would only be noticed by whoever builds it with the
+# broken feature enable.
+# The next commit demonstrates how the tests/unit framework tests all the
+# implemented features, regardless if they are used or not in the build, in
+# "maintainer
+#
+AM_CONDITIONAL([UNIT_TESTED_tls_crypt], [test "$implemented" = "yes" && unset implemented])
+
+AM_COND_IF([IMPLEMENTED_rfc4821], [implemented=yes])
+AM_CONDITIONAL([UNIT_TESTED_rfc4821], [test "$implemented" = "yes" && unset implemented])
+
+AM_COND_IF([IMPLEMENTED_buffer_2_0], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_buffer_2_2], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_buffer_2_3], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_buffer_2_4], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_buffer_2_5], [implemented=yes])
+AM_CONDITIONAL([UNIT_TESTED_buffer], [test "$implemented" = "yes" && unset implemented])
+
+AM_COND_IF([IMPLEMENTED_mtu_2_0], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_mtu_2_4], [implemented=yes])
+AM_COND_IF([IMPLEMENTED_mtu2],    [implemented=yes])
+AM_CONDITIONAL([UNIT_TESTED_mtu], [test "$implemented" = "yes" && unset implemented])
+AM_COND_IF([IMPLEMENTED_sitnl_2_5], [implemented=yes])
+AM_CONDITIONAL([UNIT_TESTED_sitnl], [test "$implemented" = "yes" && unset implemented])
+# ################### End Feature Unit Tests ##################################
+
+AC_ARG_ENABLE(
+     [unit-tests],
+     [AS_HELP_STRING([--disable-unit-tests],
+                     [Disables building and running the unit tests suite. By default, only
+                     the package configuration is tested.])
+AS_HELP_STRING([--enable-unit-tests=all],
+                     [Enables the full-test suite (maintainer mode). 
+                      Requires all possible dependencies to be installed,
+                      and tests all implemented code, whether activated by the
+                      package configuration or not.
+                      Mainly useful to the maintainers.])]
+)
+
+AM_CONDITIONAL([ENABLE_UNITTESTS], [test "${enable_unit_tests}" != "no"])
+AM_CONDITIONAL([ENABLE_UNITTESTS_ALL], [test "${enable_unit_tests}" = "all"])
+AC_ARG_VAR([TEST_CPPFLAGS], [Preprocessor flags applied to all C unit tests])
+AC_ARG_VAR([TEST_CFLAGS], [Compiler flags applied to all C unit tests])
+AC_ARG_VAR([TEST_LDFLAGS], [Linker flags applied to all C unit tests])
+
+AC_ARG_VAR([XFAIL_TESTS], [Tests expected to fail])
+
+AS_IF([test "${enable_unit_tests}" != "no"], [
+    # Check if cmocka is available - needed for unit testing
+    PKG_CHECK_MODULES(
+            [CMOCKA], [cmocka],,
+            [AC_MSG_ERROR([cmocka (required for unit testing) not found. Install it or --disable-unit-tests])]
+    )
+
+    AX_SEARCH_LIBS(MATH, [log2], [m])
+])
+AC_SUBST([MATH_LIBS])
+
 AC_OUTPUT

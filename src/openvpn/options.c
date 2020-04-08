@@ -2939,6 +2939,7 @@ options_postprocess_mutate_invariant(struct options *options)
     }
 #endif
 
+#ifdef ENABLE_PKCS11
 #ifdef DEFAULT_PKCS11_MODULE
     /* If p11-kit is present on the system then load its p11-kit-proxy.so
      * by default if the user asks for PKCS#11 without otherwise specifying
@@ -2948,6 +2949,7 @@ options_postprocess_mutate_invariant(struct options *options)
     {
         options->pkcs11_providers[0] = DEFAULT_PKCS11_MODULE;
     }
+#endif
 #endif
 }
 
