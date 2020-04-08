@@ -187,6 +187,9 @@ AM_CONDITIONAL([IMPLEMENTED_mtu_2_4],
     [test -f $(dirname "$srcdir/$ac_unique_file")/mtu.c &&
     ${GREP} '^frame_init_mssfix' $(dirname "$srcdir/$ac_unique_file")/mtu.c])
 AM_CONDITIONAL([IMPLEMENTED_mtu2], [false])
+
+AM_CONDITIONAL([IMPLEMENTED_sitnl_2_5], [test -f $(dirname "$srcdir/$ac_unique_file")/networking_sitnl.c])
+
 # #################### End Feature Implementations ############################
 
 # ######################## Buildable Packages #################################
@@ -256,6 +259,9 @@ AM_COND_IF([IMPLEMENTED_mtu_2_4], [implemented=yes])
 AM_COND_IF([IMPLEMENTED_mtu2],    [implemented=yes])
 AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/mtu/Makefile)])
 AM_CONDITIONAL([UNIT_TESTED_mtu], [test "$implemented" = "yes" && unset implemented])
+
+AM_COND_IF([IMPLEMENTED_sitnl_2_5], [implemented=yes])
+AM_CONDITIONAL([UNIT_TESTED_sitnl], [test "$implemented" = "yes" && unset implemented])
 # ################### End Feature Unit Tests ##################################
 
 AC_ARG_ENABLE(
