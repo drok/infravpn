@@ -46,6 +46,8 @@
 #include "ssl_verify_openssl.h"
 #endif
 
+#include "list.h" /* for hash_func() */
+
 /** Maximum length of common name */
 #define TLS_USERNAME_LEN 64
 

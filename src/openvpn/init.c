@@ -1884,6 +1884,7 @@ do_deferred_options (struct context *c, const unsigned int found)
     msg (D_PUSH, "OPTIONS IMPORT: environment modified");
 
 #ifdef ENABLE_SSL
+#if defined (OPT_P_PEER_ID)
   if (found & OPT_P_PEER_ID)
     {
       msg (D_PUSH, "OPTIONS IMPORT: peer-id set");
@@ -1903,6 +1904,7 @@ do_deferred_options (struct context *c, const unsigned int found)
                        " MTU problems", TUN_MTU_SIZE(&c->c2.frame) );
 	}
     }
+#endif
 #endif
 }
 

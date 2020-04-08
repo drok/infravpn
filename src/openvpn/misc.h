@@ -105,10 +105,8 @@ openvpn_run_script (const struct argv *a, const struct env_set *es, const unsign
 }
 
 
-#ifdef HAVE_STRERROR
 /* a thread-safe version of strerror */
 const char* strerror_ts (int errnum, struct gc_arena *gc);
-#endif
 
 /* Set standard file descriptors to /dev/null */
 void set_std_files_to_null (bool stdin_only);
