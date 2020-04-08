@@ -156,10 +156,6 @@ memleaks_memcheck_CPPFLAGS  = -I. $(base_test_CPPFLAGS) -DUNIT_TESTS_ALL
 
 # Enable all the known build switches. This is not a targetted test, just looks
 # for easy to catch compile errors.
-# The kitchen-sink test fails due to an apparent bug in dmalloc triggered by
-# cmocka (https://github.com/drok/ovpn/issues/7)
-XFAIL_TESTS += base.buffer.kitchen-sink.test
-
 # Ideally, some tests in test.c target these modes to make sure they do what
 # is intended.
 # Does this combination of switches build and produce a sane binary?
