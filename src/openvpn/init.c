@@ -330,7 +330,7 @@ next_connection_entry (struct context *c)
 
       do {
 	const char *remote_ip_hint = NULL;
-	bool newcycle = false;
+#warning Code review or test needed here. Start with the present commit.
 
 	ce_defined = true;
 	if (l->no_advance && l->current >= 0)
@@ -346,9 +346,6 @@ next_connection_entry (struct context *c)
 		if (++n_cycles >= 2)
 		  msg (M_FATAL, "No usable connection profiles are present");
 	      }
-
-	    if (l->current == 0)
-	      newcycle = true;
 	  }
 
 	ce = l->array[l->current];
