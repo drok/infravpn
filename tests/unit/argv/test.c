@@ -9,10 +9,16 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include <assert.h>
+#if defined(IMPLEMENTATION_2_5)
 #include <stdbool.h>
+#endif
 
 #include "argv.h"
 #include "buffer.h"
+
+#if !defined(IMPLEMENTATION_2_5)
+#define argv_free argv_reset
+#endif
 
 /* Defines for use in the tests and the mock parse_line() */
 #define PATH1       "/s p a c e"
@@ -54,6 +60,7 @@ argv_printf_cat__multiple_spaces_in_format__parsed_as_one(void **state)
     argv_free(&a);
 }
 
+#if defined(IMPLEMENTATION_2_5)
 static void
 argv_printf__embedded_format_directive__replaced_in_output(void **state)
 {
@@ -76,12 +83,23 @@ argv_printf__group_sep_in_arg__fail_no_ouput(void **state)
 
     argv_free(&a);
 }
+#endif
 
 static void
 argv_printf__combined_path_with_spaces__argc_correct(void **state)
 {
     struct argv a = argv_new();
 
+#if !defined(IMPLEMENTATION_2_5)
+    argv_printf(&a, "%s%sc", PATH1, PATH2);
+    assert_int_equal(a.argc, 1);
+
+    argv_printf(&a, "%s%sc %d", PATH1, PATH2, 42);
+    assert_int_equal(a.argc, 2);
+
+    argv_printf(&a, "foo %s%sc %s x y", PATH2, PATH1, "foo");
+    assert_int_equal(a.argc, 5);
+#else
     argv_printf(&a, "%s%s", PATH1, PATH2);
     assert_int_equal(a.argc, 1);
 
@@ -90,10 +108,11 @@ argv_printf__combined_path_with_spaces__argc_correct(void **state)
 
     argv_printf(&a, "foo %s%s %s x y", PATH2, PATH1, "foo");
     assert_int_equal(a.argc, 5);
-
+#endif
     argv_free(&a);
 }
 
+#if defined(IMPLEMENTATION_2_5)
 static void
 argv_printf__empty_parameter__argc_correct(void **state)
 {
@@ -138,6 +157,7 @@ argv_printf__long_args__data_correct(void **state)
 
     argv_free(&a);
 }
+#endif
 
 static void
 argv_parse_cmd__command_string__argc_correct(void **state)
@@ -175,6 +195,7 @@ argv_printf_cat__used_twice__argc_correct(void **state)
     argv_free(&a);
 }
 
+#if defined(IMPLEMENTATION_2_5)
 static void
 argv_str__empty_argv__empty_output(void **state)
 {
@@ -188,6 +209,7 @@ argv_str__empty_argv__empty_output(void **state)
     argv_free(&a);
     gc_free(&gc);
 }
+#endif
 
 static void
 argv_str__multiple_argv__correct_output(void **state)
@@ -196,7 +218,11 @@ argv_str__multiple_argv__correct_output(void **state)
     struct gc_arena gc = gc_new();
     const char *output;
 
+#if !defined(IMPLEMENTATION_2_5)
+    argv_printf(&a, "%s%sc", PATH1, PATH2);
+#else
     argv_printf(&a, "%s%s", PATH1, PATH2);
+#endif
     argv_printf_cat(&a, "%s", PARAM1);
     argv_printf_cat(&a, "%s", PARAM2);
     argv_printf_cat(&a, "%d", -1);
@@ -255,6 +281,13 @@ main(void)
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(argv_printf__multiple_spaces_in_format__parsed_as_one),
         cmocka_unit_test(argv_printf_cat__multiple_spaces_in_format__parsed_as_one),
+#if !defined(IMPLEMENTATION_2_5)
+#warning Review argv tests, some of the 2.5 tests are applicable pre-2.5
+        cmocka_unit_test(argv_printf__combined_path_with_spaces__argc_correct),
+        cmocka_unit_test(argv_parse_cmd__command_string__argc_correct),
+        cmocka_unit_test(argv_parse_cmd__command_and_extra_options__argc_correct),
+        cmocka_unit_test(argv_printf_cat__used_twice__argc_correct),
+#else
         cmocka_unit_test(argv_printf__embedded_format_directive__replaced_in_output),
         cmocka_unit_test(argv_printf__group_sep_in_arg__fail_no_ouput),
         cmocka_unit_test(argv_printf__combined_path_with_spaces__argc_correct),
@@ -264,6 +297,7 @@ main(void)
         cmocka_unit_test(argv_parse_cmd__command_and_extra_options__argc_correct),
         cmocka_unit_test(argv_printf_cat__used_twice__argc_correct),
         cmocka_unit_test(argv_str__empty_argv__empty_output),
+#endif
         cmocka_unit_test(argv_str__multiple_argv__correct_output),
         cmocka_unit_test(argv_insert_head__non_empty_argv__head_added),
     };
