@@ -401,7 +401,7 @@ all_tests =
 # FIXME: Fix compile warnings and enable strict integration test w/-Wall -Werror
 # Most warnings are caused by #ifdef bugs, ie, dangling, unused code that
 # belongs inside an #ifdef but it is outside.
-base_CFLAGS        =                        -Wall
+base_CFLAGS        =                        $(TEST_CFLAGS) -Wall
 base_CPPFLAGS      =                        -I$(openvpn_srcdir) \
                                             -I$(compat_srcdir)
 
@@ -663,10 +663,10 @@ multi_crypto_nossl_lzo_plugin_combo_LDADD =     $(base_LDADD) \
                                                 @LZO_LIBS@
 multi_crypto_nossl_lzo_plugin_combo_SOURCES =   $(server_sources)
 multi_crypto_nossl_lzo_plugin_combo_CPPFLAGS =  -DENABLE_CLIENT_SERVER \
-                                                (mutate_ENABLE_CRYPTO_1) \
-                                                (mutate_ENABLE_LZO) \
-                                                (mutate_ENABLE_PLUGIN) \
-                                                I. $(base_CPPFLAGS)
+                                                $(mutate_ENABLE_CRYPTO_1) \
+                                                $(mutate_ENABLE_LZO) \
+                                                $(mutate_ENABLE_PLUGIN) \
+                                                -I. $(base_CPPFLAGS)
 
 else
 all_tests += multi.crypto2-lzo.combo
