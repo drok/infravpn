@@ -284,6 +284,8 @@ AC_ARG_VAR([TEST_CFLAGS], [Compiler flags applied to all C unit tests])
 AC_ARG_VAR([TEST_LDFLAGS], [Linker flags applied to all C unit tests])
 TEST_CFLAGS="$TEST_CFLAGS -g"
 
+AC_ARG_VAR([XFAIL_TESTS], [Tests expected to fail])
+
 AS_IF([test "${enable_unit_tests}" != "no"], [
     # Check if cmocka is available - needed for unit testing
     PKG_CHECK_MODULES(

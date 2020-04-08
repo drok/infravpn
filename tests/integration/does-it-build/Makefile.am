@@ -96,7 +96,7 @@ common_sources = \
     $(openvpn_srcdir)/syshead.h
     
 # If any test is expected to fail (eg, new test, WIP, on TODO list), add it here
-XFAIL_TESTS =
+# XFAIL_TESTS +=
 
 # TODO: Add @SYSTEMD_LIBS@ test, added @ 027dd7f v2.3.5
 # TODO: Add @RESOLVER_LIBS@ test, added @ ae9aff25 2.3.7

@@ -57,6 +57,8 @@ endif
 # In tests, all needed libraries must be specifically added to LDADD
 LIBS =
 
+XFAIL_TESTS = @XFAIL_TESTS@
+
 if ENABLE_UNITTESTS_ALL
 
 # Override $top_build_dir/config.h with local version so some defines can be

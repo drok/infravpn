@@ -34,7 +34,7 @@ UUT += \
 	$(openvpn_srcdir)/platform.c
 
 # If any test is expected to fail (eg, new test, WIP, on TODO list), add it here
-XFAIL_TESTS =
+# XFAIL_TESTS +=
 
 # Are any macros needed to force building the UUT (ENABLE_SSL, etc?)?
 activation_CPPFLAGS =

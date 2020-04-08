@@ -24,7 +24,7 @@ include $(top_srcdir)/tests/unit/rules.inc
 UUT = $(openvpn_srcdir)/rfc4821.c
 
 # If any test is expected to fail (eg, new test, WIP, on TODO list), add it here
-XFAIL_TESTS =
+# XFAIL_TESTS +=
 
 # Force base64 to be built and tested even if the build configuration don't
 # use it. If it's implemented, it gets tested.
