@@ -41,7 +41,6 @@
 #endif
 #include "manage.h"
 #include "proxy.h"
-#include "lzo.h"
 #include "pushlist.h"
 #include "clinat.h"
 

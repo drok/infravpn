@@ -56,6 +56,7 @@
 #include "helper.h"
 #include "manage.h"
 #include "forward.h"
+#include "lzo.h"
 #include <ctype.h>
 
 #include "memdbg.h"
@@ -3515,7 +3516,7 @@ show_library_versions(const unsigned int flags)
 #else
 #define SSL_LIB_VER_STR ""
 #endif
-#ifdef ENABLE_LZO
+#if defined(ENABLE_LZO) && !defined(ENABLE_LZO_STUB)
 #define LZO_LIB_VER_STR ", LZO ", lzo_version_string()
 #else
 #define LZO_LIB_VER_STR "", ""
