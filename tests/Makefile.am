@@ -18,7 +18,7 @@ SUBDIRS =
 
 test_scripts = t_client.sh
 if ENABLE_CRYPTO
-test_scripts += t_lpback.sh t_cltsrv.sh
+test_scripts += t_cltsrv.sh
 endif
 
 if ENABLE_UNITTESTS
@@ -52,7 +52,7 @@ SUBDIRS += integration/does-it-build
 endif
 
 
-TESTS_ENVIRONMENT = top_srcdir="$(top_srcdir)"
+AM_TESTS_ENVIRONMENT = top_srcdir="$(top_srcdir)" top_builddir="$(top_builddir)"
 
 TESTS = $(test_scripts)
 

@@ -30,6 +30,10 @@ AM_SERVER_LOG_FLAGS = -V "$(PACKAGE_STRING)" -C "--version"
 CLIENT_LOG_COMPILER = $(srcdir)/test-it-starts.sh
 AM_CLIENT_LOG_FLAGS = -V "$(PACKAGE_STRING)" -C "--version"
 
+TEST_EXTENSIONS += .Tcrypto
+TCRYPTO_LOG_COMPILER = $(srcdir)/t_lpback.sh
+# AM_SH_LOG_FLAGS = $(crypto_tests)
+
 # Sources common to all releases of the project, and all buildables
 # (client/server/p2p/util)
 common_sources = \
@@ -403,10 +407,11 @@ base_CFLAGS        =                        $(TEST_CFLAGS) -Wall
 base_CPPFLAGS      =                        -I$(openvpn_srcdir) \
                                             -I$(compat_srcdir)
 
-TESTS = $(client_tests) $(server_tests) $(p2p_tests)
+TESTS = $(client_tests) $(server_tests) $(p2p_tests) $(crypto_tests)
 
 if ENABLE_UNITTESTS_ALL
 
+crypto_tests = 
 server_tests =
 client_tests =
 p2p_tests =
@@ -415,6 +420,7 @@ all_bins += multi.plain
 server_tests += server/multi.plain.server
 client_tests += client/multi.plain.client
 p2p_tests += p2p/multi.plain.p2p
+crypto_tests += crypto/multi.plain.Tcrypto
 
 multi_plain_CFLAGS =                        $(base_CFLAGS)
 multi_plain_LDADD =                         $(base_LDADD) \
@@ -457,6 +463,7 @@ multi_management_CPPFLAGS =                 -DENABLE_CLIENT_SERVER \
 
 all_bins += multiclient
 client_tests += client/multiclient.client
+crypto_tests += crypto/multiclient.Tcrypto
 
 multiclient_CFLAGS =                        $(base_CFLAGS)
 multiclient_LDADD =                         $(base_LDADD) \
@@ -479,6 +486,7 @@ easy_plain_CPPFLAGS =                       -I. $(base_CPPFLAGS)
 
 all_bins += easy
 p2p_tests += p2p/easy.p2p
+crypto_tests += crypto/easy.Tcrypto
 
 easy_CFLAGS =                               $(base_CFLAGS)
 easy_LDADD =                                $(base_LDADD) \
@@ -633,6 +641,7 @@ multi_full_ndebug_CPPFLAGS =                -DNDEBUG \
 # Closest to a swiss army knife, production build (no debug code)
 all_bins += multi.full.ndebug.small
 server_tests += server/multi.full.ndebug.small.server
+crypto_tests += crypto/multi.full.ndebug.small.Tcrypto
 
 multi_full_ndebug_small_CFLAGS =            $(base_CFLAGS) $(mutate_full_CFLAGS)
 multi_full_ndebug_small_LDADD =             $(base_LDADD) \
@@ -728,6 +737,7 @@ else
 
 all_bins += multi.crypto2-lzo
 server_tests += server/multi.crypto2-lzo.server
+crypto_tests += crypto/multi.crypto2-lzo.Tcrypto
 
 multi_crypto2_lzo_CFLAGS =                  $(base_CFLAGS)
 multi_crypto2_lzo_LDADD =                   $(base_LDADD) \
@@ -770,6 +780,7 @@ multi_crypto2_lz_CPPFLAGS =                 -DENABLE_CLIENT_SERVER \
 
 all_bins += multiclient.crypto2-lzo-plugin
 client_tests += client/multiclient.crypto2-lzo-plugin.client
+crypto_tests += crypto/multiclient.crypto2-lzo-plugin.Tcrypto
 
 multiclient_crypto2_lzo_plugin_CFLAGS =     $(base_CFLAGS)
 multiclient_crypto2_lzo_plugin_LDADD =      $(base_LDADD) \
@@ -794,6 +805,7 @@ if !INTEGRATED_openvpn_2_2
 # Tests with ssl2
 all_bins += easy.ssl2
 p2p_tests += p2p/easy.ssl2.p2p
+crypto_tests += crypto/easy.ssl2.Tcrypto
 
 easy_ssl2_CFLAGS =                          $(base_CFLAGS)
 easy_ssl2_LDADD =                           $(base_LDADD) \
@@ -807,6 +819,7 @@ easy_ssl2_CPPFLAGS =                        $(mutate_ENABLE_CRYPTO_2) \
 # Multi combo, only SSL #2 enabled, nothing else
 all_bins += multi.ssl2
 server_tests += server/multi.ssl2.server
+crypto_tests += crypto/multi.ssl2.Tcrypto
 
 multi_ssl2_CFLAGS    =                      $(base_CFLAGS)
 multi_ssl2_LDADD     =                      $(base_LDADD) \
@@ -864,9 +877,16 @@ multi_debug_CPPFLAGS =                      -DENABLE_DEBUG \
 check_PROGRAMS = $(all_bins)
 endif
 
+# Some of the builds will be checked with t_lpback.sh (--test-crypto)
+# t_lpback.log : $(crypto_tests)
+
 # To run multiple tests (LOG_COMPILER's) on the same binary, they must be
 # put in different directories, otherwise the output log files would overwrite
 # each other
+
+crypto/%.Tcrypto:: %
+	$(MKDIR_P) $(dir $@)
+	$(LN_S) ../$< $@ || :
 
 server/%.server:: %
 	$(MKDIR_P) $(dir $@)

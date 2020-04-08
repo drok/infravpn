@@ -31,6 +31,13 @@ TEST_EXTENSIONS += .p2p
 # Utility build (standalone key generators, etc)
 TEST_EXTENSIONS += .util
 
+
+AM_TESTS_ENVIRONMENT =
+
+if IMPLEMENTED_tls_crypt_2_5
+AM_TESTS_ENVIRONMENT += IMPLEMENTED_tls_crypt_2_5=1
+endif
+
 if ENABLE_UNITTESTS_ALL
 
 # Use the package's config-version.h from the top-build directory.
