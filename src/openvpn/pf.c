@@ -545,7 +545,9 @@ pf_check_reload(struct context *c)
     const int slow_wakeup = 15;
     const int fast_wakeup = 1;
     const int wakeup_transition = 60;
+#ifdef ENABLE_DEBUG
     bool reloaded = false;
+#endif
 
     if (c->c2.pf.enabled
         && c->c2.pf.filename
@@ -564,7 +566,9 @@ pf_check_reload(struct context *c)
                         pf_destroy(c->c2.pf.pfs);
                     }
                     c->c2.pf.pfs = pfs;
+#ifdef ENABLE_DEBUG
                     reloaded = true;
+#endif
                     if (pf_kill_test(pfs))
                     {
                         c->sig->signal_received = SIGTERM;
