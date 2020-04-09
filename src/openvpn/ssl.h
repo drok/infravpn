@@ -440,11 +440,10 @@ void ssl_set_auth_token(const char *token);
  */
 void ssl_purge_auth_challenge(void);
 
-bool ssl_clean_auth_token(void);
-
 void ssl_put_auth_challenge(const char *cr_str);
 
 #endif
+bool ssl_clean_auth_token(void);
 
 /*
  * Reserve any extra space required on frames.
