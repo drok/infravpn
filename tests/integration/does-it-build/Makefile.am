@@ -186,7 +186,6 @@ mutators +=                 ENABLE_LZO \
 mutate_ENABLE_LZO =         -DENABLE_LZO
 
 mutators +=                 ENABLE_CRYPTO
-mutate_ENABLE_CRYPTO_1 =    -DENABLE_CRYPTO -DENABLE_CRYPTO_OPENSSL
 
 mutate_full        += -DENABLE_SELINUX -DENABLE_SYSTEMD
 mutate_full_CFLAGS += @libsystemd_CFLAGS@
@@ -196,11 +195,12 @@ if !INTEGRATED_openvpn_2_3
 # Mutators added after 2.3 but before last 2.4 revision
 
 mutators +=                 ENABLE_LZ4
-mutate_ENABLE_LZ4 =         -DENABLE_LZ4
+mutate_ENABLE_LZ4 =         -DENABLE_LZ4 @LZ4_CFLAGS@
 
 mutate_CRYPTO_LIBS_1 =      @OPENSSL_LIBS@
 
-mutate_ENABLE_CRYPTO_2 =    -DENABLE_CRYPTO -DENABLE_CRYPTO_MBEDTLS
+mutate_ENABLE_CRYPTO_1 =    -DENABLE_CRYPTO -DENABLE_CRYPTO_OPENSSL @OPENSSL_CFLAGS@
+mutate_ENABLE_CRYPTO_2 =    -DENABLE_CRYPTO -DENABLE_CRYPTO_MBEDTLS @MBEDTLS_CFLAGS@
 mutate_CRYPTO_LIBS_2 =      @MBEDTLS_LIBS@
 
 mutate_ENABLE_COMP_STUB =   -DENABLE_COMP_STUB
@@ -224,7 +224,8 @@ mutate_ENABLE_SSL =         -DENABLE_SSL
 mutate_SSL_LIBS_1 =         @OPENSSL_SSL_LIBS@
 mutate_CRYPTO_LIBS_1 =      @OPENSSL_CRYPTO_LIBS@
 
-mutate_ENABLE_CRYPTO_2 =    -DENABLE_CRYPTO -DENABLE_CRYPTO_POLARSSL
+mutate_ENABLE_CRYPTO_1 =    -DENABLE_CRYPTO -DENABLE_CRYPTO_OPENSSL @OPENSSL_CRYPTO_CFLAGS@
+mutate_ENABLE_CRYPTO_2 =    -DENABLE_CRYPTO -DENABLE_CRYPTO_POLARSSL @POLARSSL_CFLAGS@
 mutate_CRYPTO_LIBS_2 =      @POLARSSL_LIBS@
 mutate_SSL_LIBS_2 =         @POLARSSL_LIBS@
 
@@ -241,7 +242,7 @@ mutators +=                 USE_LZO
 mutate_ENABLE_LZO =         -DUSE_LZO
 
 mutators +=                 USE_CRYPTO USE_SSL
-mutate_ENABLE_CRYPTO_1 =    -DUSE_CRYPTO
+mutate_ENABLE_CRYPTO_1 =    -DUSE_CRYPTO @CRYPTO_CFLAGS@
 mutate_ENABLE_SSL =         -DUSE_SSL
 
 mutate_CRYPTO_LIBS_1 =      @CRYPTO_LIBS@
@@ -254,7 +255,7 @@ mutators +=                 USE_LIBDL
 mutate_ENABLE_PLUGIN =      -DUSE_LIBDL
 
 mutators +=                 USE_CRYPTO USE_SSL
-mutate_ENABLE_CRYPTO_1 =    -DUSE_CRYPTO
+mutate_ENABLE_CRYPTO_1 =    -DUSE_CRYPTO @CRYPTO_CFLAGS@
 mutate_ENABLE_SSL =         -DUSE_SSL
 
 mutators +=                 USE_LZO
@@ -270,7 +271,7 @@ mutators +=                 USE_LIBDL
 mutate_ENABLE_PLUGIN =      -DUSE_LIBDL
 
 mutators +=                 USE_CRYPTO USE_SSL
-mutate_ENABLE_CRYPTO_1 =    -DUSE_CRYPTO
+mutate_ENABLE_CRYPTO_1 =    -DUSE_CRYPTO @CRYPTO_CFLAGS@
 mutate_ENABLE_SSL =         -DUSE_SSL
 
 mutators +=                 USE_LZO
