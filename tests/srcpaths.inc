@@ -68,6 +68,6 @@ CLEANFILES = config.h
 null =
 space = $(null) #
 config.h : $(top_builddir)/config.h Makefile
-	$(SED) -r "/#define ($(subst $(space),|,$(strip $(mutators))))/d" $< >$@
+	$(SED) -r "/#define (CONFIGURE_DEFINES|$(subst $(space),|,$(strip $(mutators))))/d" $< >$@
 
 endif
