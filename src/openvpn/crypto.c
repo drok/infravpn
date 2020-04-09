@@ -1377,7 +1377,8 @@ read_key_file(struct key2 *key2, const char *file, const unsigned int flags)
                     if (hb_index == 2)
                     {
                         unsigned int u;
-                        ASSERT(sscanf((const char *)hex_byte, "%x", &u) == 1);
+                        bool success = (sscanf((const char *)hex_byte, "%x", &u) == 1);
+                        ASSERT(success);
                         *out++ = u;
                         hb_index = 0;
                         if (++count == keylen)
