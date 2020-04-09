@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #  Tests   -- A test infrastructure for backwards-compatible testing
 #
 #  Copyright (C) 2020 Radu Hociung <radu.tests@ohmi.org>
@@ -71,6 +71,7 @@ do_test ()
 
     # Assume uut is a client
     uut=$1
+    [ -x "$uut" ] || fail "UUT $uut is not executable"
 
     if [[ ${srvbin:+isset} ]] ; then
 	local cmdargs
@@ -81,9 +82,6 @@ do_test ()
 	"$srvbin" "${cmdargs[@]}" &
 	server_pid=$!
     fi
-
-    [ -x "$uut" ] || fail "UUT $uut is not executable"
-
     
     local cmdargs
     eval "cmdargs=(" "${cltopts[@]//\$/\\\$}" ")" || {
