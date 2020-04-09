@@ -43,6 +43,8 @@
 #include "openvpn.h"
 #include "forward.h"
 
+#include "mtu.h" /* for alloc_buf_sock_tun() */
+
 #include "memdbg.h"
 
 const int proto_overhead[] = { /* indexed by PROTO_x */

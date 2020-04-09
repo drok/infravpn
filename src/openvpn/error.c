@@ -41,6 +41,7 @@
 #include "integer.h"
 #include "ps.h"
 #include "mstats.h"
+#include "misc.h"
 
 
 #if SYSLOG_CAPABILITY
