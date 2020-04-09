@@ -1311,7 +1311,9 @@ void
 process_outgoing_link(struct context *c)
 {
     struct gc_arena gc = gc_new();
+#ifdef ENABLE_CRYPTO
     int error_code = 0;
+#endif
 
     perf_push(PERF_PROC_OUT_LINK);
 
@@ -1407,7 +1409,9 @@ process_outgoing_link(struct context *c)
         }
 
         /* Check return status */
+#ifdef ENABLE_CRYPTO
         error_code = openvpn_errno();
+#endif
         check_status(size, "write", c->c2.link_socket, NULL);
 
         if (size > 0)
