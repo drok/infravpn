@@ -21,14 +21,18 @@ env:
 
 jobs:
   include:
-    - name: cl
-      env:
-      - SSLLIB="openssl"
-      - OPENSSL_VERSION="1.1.1d"
-      - P7Z="c:\Program Files\7-Zip\7z.exe"
-      - CC="cl"
-      os: windows
-      compiler: cl
+    # Disabled because this build uses out-of-tree build scripts, which are
+    # also broken at the moment, and can break the ovpn build at any time, even
+    # if they were working. TODO: Integrate windows build scripts.
+    # 
+    # - name: cl
+    #   env:
+    #   - SSLLIB="openssl"
+    #   - OPENSSL_VERSION="1.1.1d"
+    #   - P7Z="c:\Program Files\7-Zip\7z.exe"
+    #   - CC="cl"
+    #   os: windows
+    #   compiler: cl
     - name: Coverity scan
       env: SSLLIB="openssl" RUN_COVERITY="1"
       os: linux
