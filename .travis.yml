@@ -110,7 +110,8 @@ addons:
   apt:
     update: true
     packages: [ liblzo2-dev, libpam0g-dev, liblz4-dev, linux-libc-dev, man2html, mingw-w64, clang-9, libcmocka-dev,
-                libdmalloc-dev, libp11-kit-dev, valgrind, libsystemd-dev, libselinux-dev, libpkcs11-helper-dev ]
+                libdmalloc-dev, libp11-kit-dev, valgrind, libsystemd-dev, libselinux-dev, libpkcs11-helper-dev,
+                net-tools ]
   homebrew:
     update: true
     packages: [ lzo, lz4, cmocka, dmalloc, p11-kit, valgrind ]
