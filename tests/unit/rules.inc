@@ -16,33 +16,24 @@
 #  with this program; if not, write to the Free Software Foundation, Inc.,
 #  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
+# Functionality/behaviour tests. Typically use the cmocka library for assertion checking.
+TEST_EXTENSIONS = .test
 
-TEST_EXTENSIONS = .Tcrypto
-TCRYPTO_LOG_COMPILER = $(top_srcdir)/tests/integration/does-it-build/t_lpback.sh
+# Build will be run with [valgrind --tool=memcheck](https://valgrind.org/docs/manual/mc-manual.html)
+TEST_EXTENSIONS += .memcheck
 
-if ENABLE_UNITTESTS
+MEMCHECK_LOG_COMPILER = $(VALGRIND)
+MEMCHECK_LOG_FLAGS = --tool=memcheck \
+	--error-exitcode=1 \
+	--leak-check=yes \
+	--undef-value-errors=yes \
+	--track-origins=yes
 
-AM_TESTS_ENVIRONMENT =
-TESTS =
+memcheck_cflags = -g -fno-inline
+memcheck_cppflags = -DNO_CMOCKA_MEMCHECK
 
-if IMPLEMENTED_tls_crypt_2_5
-AM_TESTS_ENVIRONMENT += IMPLEMENTED_tls_crypt_2_5=1
-endif
+# The test is a configuration file. It will be run through a configuration checker (TODO: implement this testdriver)
+TEST_EXTENSIONS += .conf
 
-
-if ENABLE_CRYPTO
-
-if INTEGRATED_openvpn
-TESTS += test-crypto/openvpn.Tcrypto
-endif
-
-if INTEGRATED_ovpn
-TESTS += test-crypto/openvpn.Tcrypto
-endif
-
-test-crypto/%.Tcrypto:: %
-	$(MKDIR_P) $(dir $@)
-	$(LN_S) ../$< $@ || :
-endif
-
-endif
+# Performance test. Check that the time complexity (O(n)) is acceptable. (TODO: implement this testdriver)
+TEST_EXTENSIONS += .perf

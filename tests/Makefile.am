@@ -18,11 +18,45 @@ SUBDIRS =
 
 test_scripts = t_client.sh
 if ENABLE_CRYPTO
-test_scripts += t_lpback.sh t_cltsrv.sh
+test_scripts += t_cltsrv.sh
 endif
 
-TESTS_ENVIRONMENT = top_srcdir="$(top_srcdir)"
+if ENABLE_UNITTESTS
+
+if UNIT_TESTED_base64
+SUBDIRS += unit/base64
+endif
+
+if UNIT_TESTED_tls_crypt
+SUBDIRS += unit/tls_crypt
+endif
+
+if UNIT_TESTED_rfc4821
+SUBDIRS += unit/rfc4821
+endif
+
+if UNIT_TESTED_mtu
+SUBDIRS += unit/mtu
+endif
+
+if UNIT_TESTED_buffer
+SUBDIRS += unit/buffer
+endif
+
+if UNIT_TESTED_sitnl
+SUBDIRS += integration/sitnl
+endif
+
+if ENABLE_UNITTESTS_ALL
+SUBDIRS += integration/does-it-build
+endif
+
+
+AM_TESTS_ENVIRONMENT = top_srcdir="$(top_srcdir)" top_builddir="$(top_builddir)"
+
 TESTS = $(test_scripts)
+
+endif
 
 dist_noinst_SCRIPTS = \
 	$(test_scripts) \
@@ -31,7 +65,3 @@ dist_noinst_SCRIPTS = \
 
 dist_noinst_DATA = \
 	t_client.rc-sample
-
-if ENABLE_UNITTESTS
-
-endif
