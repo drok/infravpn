@@ -1,6 +1,17 @@
 #!/bin/sh
 set -eux
 
+if [ "${TRAVIS_OS_NAME}" = "windows" ]; then
+    choco install strawberryperl nasm
+    choco install visualstudio2019buildtools --package-parameters "--includeRecommended --includeOptional"
+    choco install visualstudio2019-workload-vctools
+    cd ..
+    git clone https://github.com/openvpn/openvpn-build.git
+    cd openvpn-build
+    PATH="/c/Strawberry/perl/bin:":$PATH MODE=DEPS msvc/build.bat
+    exit 0
+fi
+
 # Set defaults
 PREFIX="${PREFIX:-${HOME}/opt}"
 
@@ -26,24 +37,26 @@ build_lzo () {
 
             ./configure --host=${CHOST} --program-prefix='' \
                 --libdir=${PREFIX}/lib --prefix=${PREFIX} --build=x86_64-pc-linux-gnu
-            make all install
+            make -j${JOBS} all install
         )
         echo "${LZO_VERSION}" > "${PREFIX}/.lzo-version"
     fi
 }
 
 download_pkcs11_helper () {
-    if [ ! -f "pkcs11-helper-${PKCS11_HELPER_VERSION}.tar.bz2" ]; then
+    if [ ! -f "pkcs11-helper-${PKCS11_HELPER_VERSION}.tar.gz" ]; then
         wget -P download-cache/ \
-            "https://github.com/OpenSC/pkcs11-helper/releases/download/pkcs11-helper-${PKCS11_HELPER_VERSION}/pkcs11-helper-${PKCS11_HELPER_VERSION}.tar.bz2"
+            "https://github.com/OpenSC/pkcs11-helper/archive/pkcs11-helper-${PKCS11_HELPER_VERSION}.tar.gz"
     fi
 }
 
 build_pkcs11_helper () {
     if [ "$(cat ${PREFIX}/.pkcs11_helper-version)" != "${PKCS11_HELPER_VERSION}" ]; then
-        tar jxf download-cache/pkcs11-helper-${PKCS11_HELPER_VERSION}.tar.bz2
+        tar xf download-cache/pkcs11-helper-${PKCS11_HELPER_VERSION}.tar.gz
         (
-            cd "pkcs11-helper-${PKCS11_HELPER_VERSION}"
+            cd "pkcs11-helper-pkcs11-helper-${PKCS11_HELPER_VERSION}"
+
+            autoreconf -iv
 
             ./configure --host=${CHOST} --program-prefix='' --libdir=${PREFIX}/lib \
                  --prefix=${PREFIX} --build=x86_64-pc-linux-gnu \
@@ -51,7 +64,7 @@ build_pkcs11_helper () {
                  --disable-crypto-engine-nss \
                  --disable-crypto-engine-polarssl \
                  --disable-crypto-engine-mbedtls
-            make all install
+            make -j${JOBS} all install
          )
          echo "${PKCS11_HELPER_VERSION}" > "${PREFIX}/.pkcs11_helper-version"
     fi
@@ -69,8 +82,7 @@ build_mbedtls () {
         tar zxf download-cache/mbedtls-${MBEDTLS_VERSION}-apache.tgz
         (
             cd "mbedtls-${MBEDTLS_VERSION}"
-            make
-            make install DESTDIR="${PREFIX}"
+            make -j${JOBS} install DESTDIR="${PREFIX}"
         )
         echo "${MBEDTLS_VERSION}" > "${PREFIX}/.mbedtls-version"
     fi
@@ -78,8 +90,9 @@ build_mbedtls () {
 
 download_openssl () {
     if [ ! -f "download-cache/openssl-${OPENSSL_VERSION}.tar.gz" ]; then
+        MAJOR=`echo $OPENSSL_VERSION | sed -e 's/\([0-9.]*\).*/\1/'`
         wget -P download-cache/ \
-            "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+             "https://www.openssl.org/source/old/${MAJOR}/openssl-${OPENSSL_VERSION}.tar.gz"
     fi
 }
 
@@ -87,7 +100,7 @@ build_openssl_linux () {
     (
         cd "openssl-${OPENSSL_VERSION}/"
         ./config shared --prefix="${PREFIX}" --openssldir="${PREFIX}" -DPURIFY
-        make all install_sw
+        make -j ${JOBS} all && make install_sw
     )
 }
 
@@ -96,7 +109,7 @@ build_openssl_osx () {
         cd "openssl-${OPENSSL_VERSION}/"
         ./Configure darwin64-x86_64-cc shared \
             --prefix="${PREFIX}" --openssldir="${PREFIX}" -DPURIFY
-        make depend all install_sw
+        make -j${JOBS} depend all && make install_sw
     )
 }
 
@@ -130,17 +143,11 @@ build_openssl () {
     fi
 }
 
-# Download and build crypto lib
-if [ "${SSLLIB}" = "openssl" ]; then
-    download_openssl
-    build_openssl
-elif [ "${SSLLIB}" = "mbedtls" ]; then
-    download_mbedtls
-    build_mbedtls
-else
-    echo "Invalid crypto lib: ${SSLLIB}"
-    exit 1
-fi
+download_openssl
+build_openssl
+
+download_mbedtls
+build_mbedtls
 
 # Download and build dependencies for mingw cross build
 # dependencies are the same as in regular windows installer build
