@@ -2788,6 +2788,7 @@ man_output_env(const struct env_set *es, const bool tail, const int env_filter_l
     }
 }
 
+#ifdef MANAGEMENT_DEF_AUTH
 static void
 man_output_extra_env(struct management *man, const char *prefix)
 {
@@ -2801,6 +2802,7 @@ man_output_extra_env(struct management *man, const char *prefix)
     man_output_env(es, false, man->connection.env_filter_level, prefix);
     gc_free(&gc);
 }
+#endif
 
 void
 management_up_down(struct management *man, const char *updown, const struct env_set *es)

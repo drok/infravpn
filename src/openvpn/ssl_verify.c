@@ -508,6 +508,7 @@ verify_cert_set_env(struct env_set *es, openvpn_x509_cert_t *peer_cert, int cert
     gc_free(&gc);
 }
 
+#ifdef ENABLE_PLUGIN
 /*
  * call --tls-verify plug-in(s)
  */
@@ -540,6 +541,7 @@ verify_cert_call_plugin(const struct plugin_list *plugins, struct env_set *es,
     }
     return SUCCESS;
 }
+#endif
 
 static const char *
 verify_cert_export_cert(openvpn_x509_cert_t *peercert, const char *tmp_dir, struct gc_arena *gc)
@@ -773,11 +775,13 @@ verify_cert(struct tls_session *session, openvpn_x509_cert_t *cert, int cert_dep
         goto cleanup;
     }
 
+#ifdef ENABLE_PLUGIN
     /* call --tls-verify plug-in(s), if registered */
     if (SUCCESS != verify_cert_call_plugin(opt->plugins, opt->es, cert_depth, cert, subject))
     {
         goto cleanup;
     }
+#endif
 
     /* run --tls-verify script */
     if (opt->verify_command && SUCCESS != verify_cert_call_command(opt->verify_command,
@@ -1162,6 +1166,7 @@ done:
     return ret;
 }
 
+#ifdef ENABLE_PLUGIN
 /*
  * Verify the username and password using a plugin
  */
@@ -1221,7 +1226,7 @@ verify_user_pass_plugin(struct tls_session *session, const struct user_pass *up,
 cleanup:
     return retval;
 }
-
+#endif
 
 #ifdef MANAGEMENT_DEF_AUTH
 /*
@@ -1280,7 +1285,9 @@ void
 verify_user_pass(struct user_pass *up, struct tls_multi *multi,
                  struct tls_session *session)
 {
+#ifdef ENABLE_PLUGIN
     int s1 = OPENVPN_PLUGIN_FUNC_SUCCESS;
+#endif
     bool s2 = true;
     struct key_state *ks = &session->key[KS_PRIMARY];      /* primary key */
 
@@ -1375,10 +1382,12 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
         man_def_auth = verify_user_pass_management(session, up, raw_username);
     }
 #endif
+#ifdef ENABLE_PLUGIN
     if (plugin_defined(session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY))
     {
         s1 = verify_user_pass_plugin(session, up, raw_username);
     }
+#endif
     if (session->opt->auth_user_pass_verify_script)
     {
         s2 = verify_user_pass_script(session, up);
@@ -1388,15 +1397,21 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
     if ((session->opt->ssl_flags & SSLF_USERNAME_AS_COMMON_NAME) && strlen(up->username) > TLS_USERNAME_LEN)
     {
         msg(D_TLS_ERRORS, "TLS Auth Error: --username-as-common name specified and username is longer than the maximum permitted Common Name length of %d characters", TLS_USERNAME_LEN);
-        s1 = OPENVPN_PLUGIN_FUNC_ERROR;
+        s2 = false;
     }
+  else if (session->opt->auth_user_pass_verify_script)
+    s2 = verify_user_pass_script (session, up);
 
-    /* auth succeeded? */
-    if ((s1 == OPENVPN_PLUGIN_FUNC_SUCCESS
+  /* auth succeeded? */
+  if (
+#ifdef ENABLE_PLUGIN
+       (s1 == OPENVPN_PLUGIN_FUNC_SUCCESS
 #ifdef PLUGIN_DEF_AUTH
          || s1 == OPENVPN_PLUGIN_FUNC_DEFERRED
 #endif
-         ) && s2
+       ) && 
+#endif
+      s2
 #ifdef MANAGEMENT_DEF_AUTH
         && man_def_auth != KMDA_ERROR
 #endif

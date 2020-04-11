@@ -42,6 +42,12 @@
 #define BUF_INIT_TRACKING
 #endif
 
+/*
+ * Alignment of payload data such as IP packet or
+ * ethernet frame.
+ */
+#define PAYLOAD_ALIGN 4
+
 /**************************************************************************/
 /**
  * Wrapper structure for dynamically allocated memory.

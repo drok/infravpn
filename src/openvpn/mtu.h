@@ -79,12 +79,6 @@
  */
 #define MSSFIX_DEFAULT     1450
 
-/*
- * Alignment of payload data such as IP packet or
- * ethernet frame.
- */
-#define PAYLOAD_ALIGN 4
-
 
 /**************************************************************************/
 /**

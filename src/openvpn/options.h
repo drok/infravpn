@@ -35,7 +35,9 @@
 #include "route.h"
 #include "tun.h"
 #include "socket.h"
+#if defined(ENABLE_PLUGIN)
 #include "plugin.h"
+#endif
 #include "manage.h"
 #include "proxy.h"
 #include "comp.h"

@@ -1642,6 +1642,7 @@ do_route(const struct options *options,
     }
 #endif
 
+#ifdef ENABLE_PLUGIN
     if (plugin_defined(plugins, OPENVPN_PLUGIN_ROUTE_UP))
     {
         if (plugin_call(plugins, OPENVPN_PLUGIN_ROUTE_UP, NULL, NULL, es) != OPENVPN_PLUGIN_FUNC_SUCCESS)
@@ -1649,6 +1650,7 @@ do_route(const struct options *options,
             msg(M_WARN, "WARNING: route-up plugin call failed");
         }
     }
+#endif
 
     if (options->route_script)
     {
@@ -1795,8 +1797,10 @@ do_open_tun(struct context *c)
 
     /* run the up script */
     run_up_down(c->options.up_script,
+#ifdef ENABLE_PLUGIN
                 c->plugins,
                 OPENVPN_PLUGIN_UP,
+#endif
                 c->c1.tuntap->actual_name,
 #ifdef _WIN32
                 c->c1.tuntap->adapter_index,
@@ -1855,8 +1859,10 @@ else
     if (c->options.up_restart)
     {
         run_up_down(c->options.up_script,
+#ifdef ENABLE_PLUGIN
                     c->plugins,
                     OPENVPN_PLUGIN_UP,
+#endif
                     c->c1.tuntap->actual_name,
 #ifdef _WIN32
                     c->c1.tuntap->adapter_index,
@@ -1934,8 +1940,10 @@ do_close_tun(struct context *c, bool force)
             if (c->c1.route_list || c->c1.route_ipv6_list)
             {
                 run_up_down(c->options.route_predown_script,
+#ifdef ENABLE_PLUGIN
                             c->plugins,
                             OPENVPN_PLUGIN_ROUTE_PREDOWN,
+#endif
                             tuntap_actual,
 #ifdef _WIN32
                             adapter_index,
@@ -1964,8 +1972,10 @@ do_close_tun(struct context *c, bool force)
             /* Run the down script -- note that it will run at reduced
              * privilege if, for example, "--user nobody" was used. */
             run_up_down(c->options.down_script,
+#ifdef ENABLE_PLUGIN
                         c->plugins,
                         OPENVPN_PLUGIN_DOWN,
+#endif
                         tuntap_actual,
 #ifdef _WIN32
                         adapter_index,
@@ -2003,8 +2013,10 @@ do_close_tun(struct context *c, bool force)
             if (c->options.up_restart)
             {
                 run_up_down(c->options.down_script,
+#ifdef ENABLE_PLUGIN
                             c->plugins,
                             OPENVPN_PLUGIN_DOWN,
+#endif
                             tuntap_actual,
 #ifdef _WIN32
                             adapter_index,

@@ -40,7 +40,9 @@
 #include "socket.h"
 #include "mtu.h"
 #include "options.h"
+#ifdef ENABLE_PLUGIN
 #include "plugin.h"
+#endif
 
 #include "ssl_common.h"
 #include "ssl_backend.h"

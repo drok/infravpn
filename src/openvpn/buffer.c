@@ -32,7 +32,6 @@
 #include "common.h"
 #include "buffer.h"
 #include "error.h"
-#include "mtu.h"
 #include "misc.h"
 
 #include "memdbg.h"
@@ -77,6 +76,10 @@ alloc_buf(size_t size)
     buf.data = calloc(1, size);
 #endif
     check_malloc_return(buf.data);
+#ifdef BUF_INIT_TRACKING
+  buf.debug_file = NULL;
+  buf.debug_line = 0;
+#endif
 
     return buf;
 }
@@ -105,7 +108,11 @@ alloc_buf_gc(size_t size, struct gc_arena *gc)
     {
         *buf.data = 0;
     }
-    return buf;
+#ifdef BUF_INIT_TRACKING
+  buf.debug_file = NULL;
+  buf.debug_line = 0;
+#endif
+  return buf;
 }
 
 struct buffer
@@ -126,7 +133,12 @@ clone_buf(const struct buffer *buf)
 #endif
     check_malloc_return(ret.data);
     memcpy(BPTR(&ret), BPTR(buf), BLEN(buf));
-    return ret;
+#ifdef BUF_INIT_TRACKING
+  ret.debug_file = NULL;
+  ret.debug_line = 0;
+#endif
+
+  return ret;
 }
 
 #ifdef BUF_INIT_TRACKING
@@ -745,7 +757,12 @@ string_alloc_buf(const char *str, struct gc_arena *gc)
         --buf.len;
     }
 
-    return buf;
+#ifdef BUF_INIT_TRACKING
+  buf.debug_file = NULL;
+  buf.debug_line = 0;
+#endif
+
+  return buf;
 }
 
 /*

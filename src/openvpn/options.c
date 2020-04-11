@@ -1011,6 +1011,7 @@ setenv_settings(struct env_set *es, const struct options *o)
     }
 }
 
+#if ( P2MP && P2MP_SERVER ) || (defined(WIN32) && !defined(ENABLE_SMALL))
 static in_addr_t
 get_ip_addr(const char *ip_string, int msglevel, bool *error)
 {
@@ -1030,6 +1031,7 @@ get_ip_addr(const char *ip_string, int msglevel, bool *error)
     }
     return ret;
 }
+#endif
 
 /**
  * Returns newly allocated string containing address part without "/nn".
@@ -2752,11 +2754,13 @@ options_postprocess_verify_ce(const struct options *options, const struct connec
         MUST_BE_UNDEF(pkcs11_id);
         MUST_BE_UNDEF(pkcs11_id_management);
 #endif
+#if P2MP
 
         if (pull)
         {
             msg(M_USAGE, err, "--pull");
         }
+#endif
     }
 #undef MUST_BE_UNDEF
 #endif /* ENABLE_CRYPTO */
