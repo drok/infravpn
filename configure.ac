@@ -284,6 +284,7 @@ AC_ARG_VAR([TEST_CFLAGS], [Compiler flags applied to all C unit tests])
 AC_ARG_VAR([TEST_LDFLAGS], [Linker flags applied to all C unit tests])
 
 ADD_CFLAGS(TEST, [-Werror=implicit-function-declaration])
+ADD_CFLAGS(TEST, [-Werror=unused-but-set-variable])
 
 AC_ARG_VAR([XFAIL_TESTS], [Tests expected to fail])
 
