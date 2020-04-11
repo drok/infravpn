@@ -28,13 +28,6 @@ trap "rm -f key.$$ tc-server-key.$$ tc-client-key.$$ log.$$ ; exit 1" 0 3
 CIPHERS=$(${top_builddir}/src/openvpn/openvpn --show-ciphers | \
             sed -e '/The following/,/^$/d' -e s'/ .*//' -e '/^[[:space:]]*$/d')
 
-# SK, 2014-06-04: currently the DES-EDE3-CFB1 implementation of OpenSSL is
-# broken (see http://rt.openssl.org/Ticket/Display.html?id=2867), so exclude
-# that cipher from this test.
-# GD, 2014-07-06 so is DES-CFB1
-# GD, 2014-07-06 do not test RC5-* either (fails on NetBSD w/o libcrypto_rc5)
-CIPHERS=$(echo "$CIPHERS" | egrep -v '^(DES-EDE3-CFB1|DES-CFB1|RC5-)' )
-
 # Also test cipher 'none'
 CIPHERS=${CIPHERS}$(printf "\nnone")
 
