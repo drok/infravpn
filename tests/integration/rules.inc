@@ -19,16 +19,13 @@
 # Integration build flavors. Each flavor can be tested by a different
 # runner/log_compiler, defined as {FLAVOR}_LOG_COMPILER in a subdir from here
 
-# Multi Server-only
+# Test a binary as Multi Server
 TEST_EXTENSIONS = .server
 
-# Multi Server/client combination
-TEST_EXTENSIONS += .combo
-
-# Multi Client-only
+# Test a binary as Multi Client
 TEST_EXTENSIONS += .client
 
-# Non-Multi build
+# Test a binary as peer-2-peer
 TEST_EXTENSIONS += .p2p
 
 # Utility build (standalone key generators, etc)

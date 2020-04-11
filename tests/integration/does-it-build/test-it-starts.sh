@@ -91,7 +91,7 @@ do_test ()
 
     uut_pid=$!
 
-    status = 0;
+    status=0
     wait "$uut_pid" || status=$?
 
     if [[ ${srvbin:+isset} ]] ; then

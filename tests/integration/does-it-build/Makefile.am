@@ -24,9 +24,6 @@ include $(top_srcdir)/tests/integration/rules.inc
 P2P_LOG_COMPILER = $(srcdir)/test-it-starts.sh
 AM_P2P_LOG_FLAGS = -V "$(PACKAGE_STRING)" -C "--version"
 
-COMBO_LOG_COMPILER = $(srcdir)/test-it-starts.sh
-AM_COMBO_LOG_FLAGS = -V "$(PACKAGE_STRING)" -C "--version"
-
 SERVER_LOG_COMPILER = $(srcdir)/test-it-starts.sh
 AM_SERVER_LOG_FLAGS = -V "$(PACKAGE_STRING)" -C "--version"
 
@@ -34,7 +31,7 @@ CLIENT_LOG_COMPILER = $(srcdir)/test-it-starts.sh
 AM_CLIENT_LOG_FLAGS = -V "$(PACKAGE_STRING)" -C "--version"
 
 # Sources common to all releases of the project, and all buildables
-# (client/server/combo/util)
+# (client/server/p2p/util)
 common_sources = \
     $(openvpn_srcdir)/base64.c              $(openvpn_srcdir)/base64.h \
     $(openvpn_srcdir)/buffer.c              $(openvpn_srcdir)/buffer.h \
@@ -148,10 +145,10 @@ mutators = $(uNTESTED_mutators_TODO) \
 # Builds are more likely to fail when some feature is turned off, but others
 # depend on it.
 mutate_full =   -DENABLE_FRAGMENT \
-				-DENABLE_MANAGEMENT \
-				-DENABLE_PASSWORD_SAVE \
-				-DENABLE_HTTP_PROXY \
-				-DENABLE_SOCKS
+                -DENABLE_MANAGEMENT \
+                -DENABLE_PASSWORD_SAVE \
+                -DENABLE_HTTP_PROXY \
+                -DENABLE_SOCKS
 
 mutate_full_CFLAGS =
 mutate_full_LIBS   =
@@ -181,8 +178,8 @@ mutators +=                 ENABLE_PLUGIN
 mutate_ENABLE_PLUGIN =      -DENABLE_PLUGIN -I$(openvpn_includedir)
 
 mutators +=                 ENABLE_LZO \
-							ENABLE_SELINUX \
-							ENABLE_SYSTEMD
+                            ENABLE_SELINUX \
+                            ENABLE_SYSTEMD
 mutate_ENABLE_LZO =         -DENABLE_LZO
 
 mutators +=                 ENABLE_CRYPTO
@@ -397,7 +394,7 @@ client_sources = $(common_sources)
 util_sources =   $(common_sources)
 
 # Integration tests to be run by developers/maintainers, --enable-unit-tests=all
-all_tests =
+all_bins =
 
 # FIXME: Fix compile warnings and enable strict integration test w/-Wall -Werror
 # Most warnings are caused by #ifdef bugs, ie, dangling, unused code that
@@ -406,108 +403,146 @@ base_CFLAGS        =                        $(TEST_CFLAGS) -Wall
 base_CPPFLAGS      =                        -I$(openvpn_srcdir) \
                                             -I$(compat_srcdir)
 
+TESTS = $(client_tests) $(server_tests) $(p2p_tests)
+
 if ENABLE_UNITTESTS_ALL
 
-all_tests += multi.plain.combo
-multi_plain_combo_CFLAGS    =               $(base_CFLAGS)
-multi_plain_combo_LDADD     =               $(base_LDADD) \
+server_tests =
+client_tests =
+p2p_tests =
+
+all_bins += multi.plain
+server_tests += server/multi.plain.server
+client_tests += client/multi.plain.client
+p2p_tests += p2p/multi.plain.p2p
+
+multi_plain_CFLAGS =                        $(base_CFLAGS)
+multi_plain_LDADD =                         $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1)
-multi_plain_combo_SOURCES   =               $(combo_sources)
-multi_plain_combo_CPPFLAGS  =               -DENABLE_CLIENT_SERVER \
+multi_plain_SOURCES =                       $(combo_sources)
+multi_plain_CPPFLAGS =                      -DENABLE_CLIENT_SERVER \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_SSL) \
                                             -I. $(base_CPPFLAGS)
 
-all_tests += multi.plugin.combo
-multi_plugin_combo_CFLAGS =                 $(base_CFLAGS)
-multi_plugin_combo_LDADD =                  $(base_LDADD) \
+all_bins += multi.plugin
+server_tests += server/multi.plugin.server
+
+multi_plugin_CFLAGS =                       $(base_CFLAGS)
+multi_plugin_LDADD =                        $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
                                             @DL_LIBS@
-multi_plugin_combo_SOURCES   =              $(combo_sources)
-multi_plugin_combo_CPPFLAGS  =             -DENABLE_CLIENT_SERVER \
+multi_plugin_SOURCES   =                    $(combo_sources)
+multi_plugin_CPPFLAGS  =                    -DENABLE_CLIENT_SERVER \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_SSL) \
                                             $(mutate_ENABLE_PLUGIN) \
                                             -I. $(base_CPPFLAGS)
 
-all_tests += multi.management.combo
-multi_management_combo_CFLAGS    =          $(base_CFLAGS)
-multi_management_combo_LDADD     =          $(base_LDADD) \
+all_bins += multi.management
+server_tests += server/multi.management.server
+
+multi_management_CFLAGS =                   $(base_CFLAGS)
+multi_management_LDADD =                    $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1)
-multi_management_combo_SOURCES   =          $(combo_sources)
-multi_management_combo_CPPFLAGS  =          -DENABLE_CLIENT_SERVER \
-											-DENABLE_MANAGEMENT \
+multi_management_SOURCES =                  $(combo_sources)
+multi_management_CPPFLAGS =                 -DENABLE_CLIENT_SERVER \
+                                            -DENABLE_MANAGEMENT \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_SSL) \
                                             -I. $(base_CPPFLAGS)
 
-all_tests += multiclient.client
-multiclient_client_CFLAGS    =              $(base_CFLAGS)
-multiclient_client_LDADD     =              $(base_LDADD) \
+all_bins += multiclient
+client_tests += client/multiclient.client
+
+multiclient_CFLAGS =                        $(base_CFLAGS)
+multiclient_LDADD =                         $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1)
-multiclient_client_SOURCES   =              $(client_sources)
-multiclient_client_CPPFLAGS  =              -DENABLE_CLIENT_SERVER \
+multiclient_SOURCES =                       $(client_sources)
+multiclient_CPPFLAGS =                      -DENABLE_CLIENT_SERVER \
                                             -DENABLE_CLIENT_ONLY \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_SSL) \
                                             -I. $(base_CPPFLAGS)
 
-all_tests += easy.p2p
-easy_p2p_CFLAGS    =                        $(base_CFLAGS)
-easy_p2p_LDADD     =                        $(base_LDADD)
-easy_p2p_SOURCES   =                        $(client_sources)
-easy_p2p_CPPFLAGS  =                        -I. $(base_CPPFLAGS)
+all_bins += easy.plain
+p2p_tests += p2p/easy.plain.p2p
 
-all_tests += easy.plugin.p2p
-easy_plugin_p2p_CFLAGS    =                 $(base_CFLAGS)
-easy_plugin_p2p_LDADD     =                 $(base_LDADD) \
+easy_plain_CFLAGS =                         $(base_CFLAGS)
+easy_plain_LDADD =                          $(base_LDADD)
+easy_plain_SOURCES =                        $(client_sources)
+easy_plain_CPPFLAGS =                       -I. $(base_CPPFLAGS)
+
+all_bins += easy
+p2p_tests += p2p/easy.p2p
+
+easy_CFLAGS =                               $(base_CFLAGS)
+easy_LDADD =                                $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_1)
+easy_SOURCES =                              $(client_sources)
+easy_CPPFLAGS  =                            $(mutate_ENABLE_CRYPTO_1) \
+                                            -I. $(base_CPPFLAGS)
+
+all_bins += easy.plugin
+p2p_tests += p2p/easy.plugin.p2p
+
+easy_plugin_CFLAGS =                        $(base_CFLAGS)
+easy_plugin_LDADD =                         $(base_LDADD) \
                                             @DL_LIBS@
-easy_plugin_p2p_SOURCES   =                 $(client_sources)
-easy_plugin_p2p_CPPFLAGS  =                 $(mutate_ENABLE_PLUGIN) \
+easy_plugin_SOURCES =                       $(client_sources)
+easy_plugin_CPPFLAGS =                      $(mutate_ENABLE_PLUGIN) \
                                             -I. $(base_CPPFLAGS)
 
-all_tests += easy.management.p2p
-easy_management_p2p_CFLAGS    =             $(base_CFLAGS)
-easy_management_p2p_LDADD     =             $(base_LDADD)
-easy_management_p2p_SOURCES   =             $(client_sources)
-easy_management_p2p_CPPFLAGS  =             -DENABLE_MANAGEMENT \
+all_bins += easy.management
+p2p_tests += p2p/easy.management.p2p
+
+easy_management_CFLAGS =                    $(base_CFLAGS)
+easy_management_LDADD =                     $(base_LDADD)
+easy_management_SOURCES =                   $(client_sources)
+easy_management_CPPFLAGS =                  -DENABLE_MANAGEMENT \
                                             -I. $(base_CPPFLAGS)
 
-all_tests += easy.lzo.p2p
-easy_lzo_p2p_CFLAGS    =                    $(base_CFLAGS)
-easy_lzo_p2p_LDADD     =                    $(base_LDADD) \
+all_bins += easy.lzo
+p2p_tests += p2p/easy.lzo.p2p
+easy_lzo_CFLAGS =                           $(base_CFLAGS)
+easy_lzo_LDADD =                            $(base_LDADD) \
                                             @LZO_LIBS@
-easy_lzo_p2p_SOURCES   =                    $(client_sources)
-easy_lzo_p2p_CPPFLAGS  =                    -DENABLE_LZO \
+easy_lzo_SOURCES =                          $(client_sources)
+easy_lzo_CPPFLAGS =                         -DENABLE_LZO \
                                             -I. $(base_CPPFLAGS)
 
 if !INTEGRATED_openvpn_2_0
 if !INTEGRATED_openvpn_2_1
 if !INTEGRATED_openvpn_2_2
-all_tests += easy.lzo-compstub.p2p
-easy_lzo_compstub_p2p_CFLAGS    =           $(base_CFLAGS)
-easy_lzo_compstub_p2p_LDADD     =           $(base_LDADD) \
+
+all_bins += easy.lzo-compstub
+p2p_tests += p2p/easy.lzo-compstub.p2p
+
+easy_lzo_compstub_CFLAGS =                  $(base_CFLAGS)
+easy_lzo_compstub_LDADD =                   $(base_LDADD) \
                                             @LZO_LIBS@
-easy_lzo_compstub_p2p_SOURCES   =           $(client_sources)
-easy_lzo_compstub_p2p_CPPFLAGS  =           -DENABLE_LZO \
-											$(mutate_ENABLE_COMP_STUB) \
+easy_lzo_compstub_SOURCES =                 $(client_sources)
+easy_lzo_compstub_CPPFLAGS =                -DENABLE_LZO \
+                                            $(mutate_ENABLE_COMP_STUB) \
                                             -I. $(base_CPPFLAGS)
 endif
 endif
 endif
 
-all_tests += multi.lzo.combo
-multi_lzo_combo_CFLAGS =                    $(base_CFLAGS)
-multi_lzo_combo_LDADD =                     $(base_LDADD) \
+all_bins += multi.lzo
+server_tests += server/multi.lzo.server
+
+multi_lzo_CFLAGS =                          $(base_CFLAGS)
+multi_lzo_LDADD =                           $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
                                             @LZO_LIBS@
-multi_lzo_combo_SOURCES   =                 $(server_sources)
-multi_lzo_combo_CPPFLAGS  =                 -DENABLE_CLIENT_SERVER \
+multi_lzo_SOURCES =                         $(server_sources)
+multi_lzo_CPPFLAGS =                        -DENABLE_CLIENT_SERVER \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_SSL) \
                                             $(mutate_ENABLE_LZO) \
@@ -516,32 +551,36 @@ multi_lzo_combo_CPPFLAGS  =                 -DENABLE_CLIENT_SERVER \
 if !INTEGRATED_openvpn_2_0
 if !INTEGRATED_openvpn_2_1
 if !INTEGRATED_openvpn_2_2
-all_tests += multi.lzo-compstub.combo
-multi_lzo_compstub_combo_CFLAGS =           $(base_CFLAGS)
-multi_lzo_compstub_combo_LDADD =            $(base_LDADD) \
+all_bins += multi.lzo-compstub
+server_tests += server/multi.lzo-compstub.server
+
+multi_lzo_compstub_CFLAGS =                 $(base_CFLAGS)
+multi_lzo_compstub_LDADD =                  $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
                                             @LZO_LIBS@
-multi_lzo_compstub_combo_SOURCES =          $(server_sources)
-multi_lzo_compstub_combo_CPPFLAGS =         -DENABLE_CLIENT_SERVER \
-											$(mutate_ENABLE_CRYPTO_1) \
-											$(mutate_ENABLE_SSL) \
-											$(mutate_ENABLE_LZO) \
-											$(mutate_ENABLE_COMP_STUB) \
-											-I. $(base_CPPFLAGS)
+multi_lzo_compstub_SOURCES =                $(server_sources)
+multi_lzo_compstub_CPPFLAGS =               -DENABLE_CLIENT_SERVER \
+                                            $(mutate_ENABLE_CRYPTO_1) \
+                                            $(mutate_ENABLE_SSL) \
+                                            $(mutate_ENABLE_LZO) \
+                                            $(mutate_ENABLE_COMP_STUB) \
+                                            -I. $(base_CPPFLAGS)
 endif
 endif
 endif
 
-all_tests += multiclient.lzo-plugin.client
-multiclient_lzo_plugin_client_CFLAGS =      $(base_CFLAGS)
-multiclient_lzo_plugin_client_LDADD =       $(base_LDADD) \
+all_bins += multiclient.lzo-plugin
+client_tests += client/multiclient.lzo-plugin.client
+
+multiclient_lzo_plugin_CFLAGS =             $(base_CFLAGS)
+multiclient_lzo_plugin_LDADD =              $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
                                             @DL_LIBS@ \
                                             @LZO_LIBS@
-multiclient_lzo_plugin_client_SOURCES =     $(server_sources)
-multiclient_lzo_plugin_client_CPPFLAGS=     -DENABLE_CLIENT_SERVER \
+multiclient_lzo_plugin_SOURCES =            $(server_sources)
+multiclient_lzo_plugin_CPPFLAGS =           -DENABLE_CLIENT_SERVER \
                                             -DENABLE_CLIENT_ONLY \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_SSL) \
@@ -550,17 +589,19 @@ multiclient_lzo_plugin_client_CPPFLAGS=     -DENABLE_CLIENT_SERVER \
                                             -I. $(base_CPPFLAGS)
 
 # Plugins enabled, but not multi. @LD_LIBS@ must not be required to build
-all_tests += easy.full.ndebug.p2p
-easy_full_ndebug_p2p_CFLAGS    =            $(base_CFLAGS) $(mutate_full_CFLAGS)
-easy_full_ndebug_p2p_LDADD     =            $(base_LDADD) \
+all_bins += easy.full.ndebug
+p2p_tests += p2p/easy.full.ndebug.p2p
+
+easy_full_ndebug_CFLAGS =                   $(base_CFLAGS) $(mutate_full_CFLAGS)
+easy_full_ndebug_LDADD =                    $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
-											$(mutate_full_LIBS)
-easy_full_ndebug_p2p_SOURCES   =            $(combo_sources)
-easy_full_ndebug_p2p_CPPFLAGS  =            -DNDEBUG \
+                                            $(mutate_full_LIBS)
+easy_full_ndebug_SOURCES =                  $(combo_sources)
+easy_full_ndebug_CPPFLAGS =                 -DNDEBUG \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_SSL) \
-											$(mutate_full) \
+                                            $(mutate_full) \
                                             -I. $(base_CPPFLAGS)
 
 # The ndebug build is very similar to the plain build in many versions of the
@@ -572,155 +613,178 @@ easy_full_ndebug_p2p_CPPFLAGS  =            -DNDEBUG \
 # to bugs like ASSERT() that modify state.
 # TDLR: Do not remove the _ndebug_ tests.
 # Kitchen sink. Everything is enabled. Combo
-all_tests += multi.full.ndebug.combo
-multi_full_ndebug_combo_CFLAGS    =         $(base_CFLAGS) $(mutate_full_CFLAGS)
-multi_full_ndebug_combo_LDADD     =         $(base_LDADD) \
+all_bins += multi.full.ndebug
+server_tests += server/multi.full.ndebug.server
+
+multi_full_ndebug_CFLAGS =                  $(base_CFLAGS) $(mutate_full_CFLAGS)
+multi_full_ndebug_LDADD =                   $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
-											$(mutate_full_LIBS)
-multi_full_ndebug_combo_SOURCES   =         $(combo_sources)
-multi_full_ndebug_combo_CPPFLAGS  =         -DNDEBUG \
+                                            $(mutate_full_LIBS)
+multi_full_ndebug_SOURCES =                 $(combo_sources)
+multi_full_ndebug_CPPFLAGS =                -DNDEBUG \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_SSL) \
-											-DENABLE_CLIENT_SERVER \
-											$(mutate_full) \
+                                            -DENABLE_CLIENT_SERVER \
+                                            $(mutate_full) \
                                             -I. $(base_CPPFLAGS)
 
 # Kitchen sink. Everything is enabled. Combo, Small build
 # Closest to a swiss army knife, production build (no debug code)
-all_tests += multi.full.ndebug.small.combo
-multi_full_ndebug_small_combo_CFLAGS    =   $(base_CFLAGS) $(mutate_full_CFLAGS)
-multi_full_ndebug_small_combo_LDADD     =   $(base_LDADD) \
+all_bins += multi.full.ndebug.small
+server_tests += server/multi.full.ndebug.small.server
+
+multi_full_ndebug_small_CFLAGS =            $(base_CFLAGS) $(mutate_full_CFLAGS)
+multi_full_ndebug_small_LDADD =             $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
-											$(mutate_full_LIBS)
-multi_full_ndebug_small_combo_SOURCES   =   $(combo_sources)
-multi_full_ndebug_small_combo_CPPFLAGS  =   -DNDEBUG \
+                                            $(mutate_full_LIBS)
+multi_full_ndebug_small_SOURCES =           $(combo_sources)
+multi_full_ndebug_small_CPPFLAGS =          -DNDEBUG \
                                             -DENABLE_SMALL \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_SSL) \
-											-DENABLE_CLIENT_SERVER \
-											$(mutate_full) \
+                                            -DENABLE_CLIENT_SERVER \
+                                            $(mutate_full) \
                                             -I. $(base_CPPFLAGS)
 
 # Kitchen sink. Everything is enabled. Combo, Debug build
-all_tests += multi.full.debug.combo
-multi_full_debug_combo_CFLAGS    =          $(base_CFLAGS) $(mutate_full_CFLAGS)
-multi_full_debug_combo_LDADD     =          $(base_LDADD) \
+all_bins += multi.full.debug
+server_tests += server/multi.full.debug.server
+
+multi_full_debug_CFLAGS =                   $(base_CFLAGS) $(mutate_full_CFLAGS)
+multi_full_debug_LDADD =                    $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
-											$(mutate_full_LIBS)
-multi_full_debug_combo_SOURCES   =          $(combo_sources)
-multi_full_debug_combo_CPPFLAGS  =          -DENABLE_DEBUG \
+                                            $(mutate_full_LIBS)
+multi_full_debug_SOURCES =                  $(combo_sources)
+multi_full_debug_CPPFLAGS =                 -DENABLE_DEBUG \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_SSL) \
-											-DENABLE_CLIENT_SERVER \
-											$(mutate_full) \
+                                            -DENABLE_CLIENT_SERVER \
+                                            $(mutate_full) \
                                             -I. $(base_CPPFLAGS)
 
 # Kitchen sink. Everything is enabled, client only
-all_tests += multiclient.full.ndebug.client
-multiclient_full_ndebug_client_CFLAGS    =  $(base_CFLAGS) $(mutate_full_CFLAGS)
-multiclient_full_ndebug_client_LDADD     =  $(base_LDADD) \
+all_bins += multiclient.full.ndebug
+client_tests += client/multiclient.full.ndebug.client
+
+multiclient_full_ndebug_CFLAGS =            $(base_CFLAGS) $(mutate_full_CFLAGS)
+multiclient_full_ndebug_LDADD =             $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
-											$(mutate_full_LIBS)
-multiclient_full_ndebug_client_SOURCES   =  $(combo_sources)
-multiclient_full_ndebug_client_CPPFLAGS  =  -DNDEBUG \
+                                            $(mutate_full_LIBS)
+multiclient_full_ndebug_SOURCES =           $(combo_sources)
+multiclient_full_ndebug_CPPFLAGS =          -DNDEBUG \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_SSL) \
-											-DENABLE_CLIENT_SERVER \
-											-DENABLE_CLIENT_ONLY \
-											$(mutate_full) \
+                                            -DENABLE_CLIENT_SERVER \
+                                            -DENABLE_CLIENT_ONLY \
+                                            $(mutate_full) \
                                             -I. $(base_CPPFLAGS)
 
 if INTEGRATED_openvpn_le_2_3
 # Ie, ENABLE_SSL is separate from ENABLE_CRYPTO
-all_tests += multi.crypto-nossl.combo
-multi_crypto_nossl_combo_CFLAGS =           $(base_CFLAGS)
-multi_crypto_nossl_combo_LDADD =            $(base_LDADD) \
+all_bins += multi.crypto-nossl
+server_tests += server/multi.crypto-nossl.server
+
+multi_crypto_nossl_CFLAGS =                 $(base_CFLAGS)
+multi_crypto_nossl_LDADD =                  $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1)
-multi_crypto_nossl_combo_SOURCES =          $(server_sources)
-multi_crypto_nossl_combo_CPPFLAGS =         -DENABLE_CLIENT_SERVER \
+multi_crypto_nossl_SOURCES =                $(server_sources)
+multi_crypto_nossl_CPPFLAGS =               -DENABLE_CLIENT_SERVER \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             -I. $(base_CPPFLAGS)
 
-all_tests += multi.crypto-nossl-lzo.combo
-multi_crypto_nossl_lzo_combo_CFLAGS =       $(base_CFLAGS)
-multi_crypto_nossl_lzo_combo_LDADD =        $(base_LDADD) \
+all_bins += multi.crypto-nossl-lzo
+server_tests += server/multi.crypto-nossl-lzo.server
+
+multi_crypto_nossl_lzo_CFLAGS =             $(base_CFLAGS)
+multi_crypto_nossl_lzo_LDADD =              $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             @LZO_LIBS@
-multi_crypto_nossl_lzo_combo_SOURCES =      $(server_sources)
-multi_crypto_nossl_lzo_combo_CPPFLAGS =     -DENABLE_CLIENT_SERVER \
+multi_crypto_nossl_lzo_SOURCES =            $(server_sources)
+multi_crypto_nossl_lzo_CPPFLAGS =           -DENABLE_CLIENT_SERVER \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_LZO) \
                                             -I. $(base_CPPFLAGS)
 
-all_tests += multi.crypto-nossl-lzo-plugin.combo
-multi_crypto_nossl_lzo_plugin_combo_CFLAGS =    $(base_CFLAGS)
-multi_crypto_nossl_lzo_plugin_combo_LDADD =     $(base_LDADD) \
-                                                $(mutate_CRYPTO_LIBS_1) \
-                                                @DL_LIBS@ \
-                                                @LZO_LIBS@
-multi_crypto_nossl_lzo_plugin_combo_SOURCES =   $(server_sources)
-multi_crypto_nossl_lzo_plugin_combo_CPPFLAGS =  -DENABLE_CLIENT_SERVER \
-                                                $(mutate_ENABLE_CRYPTO_1) \
-                                                $(mutate_ENABLE_LZO) \
-                                                $(mutate_ENABLE_PLUGIN) \
-                                                -I. $(base_CPPFLAGS)
+all_bins += multi.crypto-nossl-lzo-plugin
+server_tests += server/multi.crypto-nossl-lzo-plugin
+
+multi_crypto_nossl_lzo_plugin_CFLAGS =      $(base_CFLAGS)
+multi_crypto_nossl_lzo_plugin_LDADD =       $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_1) \
+                                            @DL_LIBS@ \
+                                            @LZO_LIBS@
+multi_crypto_nossl_lzo_plugin_SOURCES =     $(server_sources)
+multi_crypto_nossl_lzo_plugin_CPPFLAGS =    -DENABLE_CLIENT_SERVER \
+                                            $(mutate_ENABLE_CRYPTO_1) \
+                                            $(mutate_ENABLE_LZO) \
+                                            $(mutate_ENABLE_PLUGIN) \
+                                            -I. $(base_CPPFLAGS)
 
 else
-all_tests += multi.crypto2-lzo.combo
-multi_crypto2_lzo_combo_CFLAGS    = $(base_CFLAGS)
-multi_crypto2_lzo_combo_LDADD     = $(base_LDADD) \
-                                    $(mutate_CRYPTO_LIBS_2) \
-                                    @LZO_LIBS@
-multi_crypto2_lzo_combo_SOURCES   = $(server_sources)
-multi_crypto2_lzo_combo_CPPFLAGS  = -DENABLE_CLIENT_SERVER \
-                                    $(mutate_ENABLE_CRYPTO_2) \
-                                    $(mutate_ENABLE_LZO) \
-                                    -I. $(base_CPPFLAGS)
 
-all_tests += multi.crypto2-lz4.combo
-multi_crypto2_lz4_combo_CFLAGS    = $(base_CFLAGS)
-multi_crypto2_lz4_combo_LDADD     = $(base_LDADD) \
-                                    $(mutate_CRYPTO_LIBS_2) \
-                                    @LZ4_LIBS@
-multi_crypto2_lz4_combo_SOURCES   = $(server_sources)
-multi_crypto2_lz4_combo_CPPFLAGS  = -DENABLE_CLIENT_SERVER \
-                                    $(mutate_ENABLE_CRYPTO_2) \
-                                    -DENABLE_LZ4 \
-                                    -I. $(base_CPPFLAGS)
+all_bins += multi.crypto2-lzo
+server_tests += server/multi.crypto2-lzo.server
 
-all_tests += multi.crypto2-lz.combo
-multi_crypto2_lz_combo_CFLAGS    =  $(base_CFLAGS)
-multi_crypto2_lz_combo_LDADD     =  $(base_LDADD) \
-                                    $(mutate_CRYPTO_LIBS_2) \
-        							$(mutate_SSL_LIBS_2) \
-                                    @LZO_LIBS@ @LZ4_LIBS@
-multi_crypto2_lz_combo_SOURCES   =  $(server_sources)
-multi_crypto2_lz_combo_CPPFLAGS  =  -DENABLE_CLIENT_SERVER \
-                                    $(mutate_ENABLE_CRYPTO_2) \
-                                    $(mutate_ENABLE_SSL) \
-                                    -DENABLE_LZ4 \
-                                    $(mutate_ENABLE_LZO) \
-                                    -I. $(base_CPPFLAGS)
+multi_crypto2_lzo_CFLAGS =                  $(base_CFLAGS)
+multi_crypto2_lzo_LDADD =                   $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_2) \
+                                            @LZO_LIBS@
+multi_crypto2_lzo_SOURCES =                 $(server_sources)
+multi_crypto2_lzo_CPPFLAGS =                -DENABLE_CLIENT_SERVER \
+                                            $(mutate_ENABLE_CRYPTO_2) \
+                                            $(mutate_ENABLE_LZO) \
+                                            -I. $(base_CPPFLAGS)
 
-all_tests += multiclient.crypto2-lzo-plugin.client
-multiclient_crypto2_lzo_plugin_client_CFLAGS =  $(base_CFLAGS)
-multiclient_crypto2_lzo_plugin_client_LDADD =   $(base_LDADD) \
-                                                $(mutate_CRYPTO_LIBS_2) \
-												$(mutate_SSL_LIBS_2) \
-                                                @DL_LIBS@ \
-                                                @LZO_LIBS@
-multiclient_crypto2_lzo_plugin_client_SOURCES =     $(server_sources)
-multiclient_crypto2_lzo_plugin_client_CPPFLAGS =    -DENABLE_CLIENT_SERVER \
-                                                    -DENABLE_CLIENT_ONLY \
-                                                    $(mutate_ENABLE_CRYPTO_2) \
-                                                    $(mutate_ENABLE_SSL) \
-                                                    $(mutate_ENABLE_LZO) \
-                                                    $(mutate_ENABLE_PLUGIN) \
-                                                    -I. $(base_CPPFLAGS)
+all_bins += multi.crypto2-lz4
+server_tests += server/multi.crypto2-lz4.server
+
+multi_crypto2_lz4_CFLAGS =                  $(base_CFLAGS)
+multi_crypto2_lz4_LDADD =                   $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_2) \
+                                            @LZ4_LIBS@
+multi_crypto2_lz4_SOURCES =                 $(server_sources)
+multi_crypto2_lz4_CPPFLAGS =                -DENABLE_CLIENT_SERVER \
+                                            $(mutate_ENABLE_CRYPTO_2) \
+                                            -DENABLE_LZ4 \
+                                            -I. $(base_CPPFLAGS)
+
+all_bins += multi.crypto2-lz
+server_tests += server/multi.crypto2-lz.server
+
+multi_crypto2_lz_CFLAGS =                   $(base_CFLAGS)
+multi_crypto2_lz_LDADD =                    $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_2) \
+                                            $(mutate_SSL_LIBS_2) \
+                                            @LZO_LIBS@ @LZ4_LIBS@
+multi_crypto2_lz_SOURCES =                  $(server_sources)
+multi_crypto2_lz_CPPFLAGS =                 -DENABLE_CLIENT_SERVER \
+                                            $(mutate_ENABLE_CRYPTO_2) \
+                                            $(mutate_ENABLE_SSL) \
+                                            -DENABLE_LZ4 \
+                                            $(mutate_ENABLE_LZO) \
+                                            -I. $(base_CPPFLAGS)
+
+all_bins += multiclient.crypto2-lzo-plugin
+client_tests += client/multiclient.crypto2-lzo-plugin.client
+
+multiclient_crypto2_lzo_plugin_CFLAGS =     $(base_CFLAGS)
+multiclient_crypto2_lzo_plugin_LDADD =      $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_2) \
+                                            $(mutate_SSL_LIBS_2) \
+                                            @DL_LIBS@ \
+                                            @LZO_LIBS@
+multiclient_crypto2_lzo_plugin_SOURCES =    $(server_sources)
+multiclient_crypto2_lzo_plugin_CPPFLAGS =   -DENABLE_CLIENT_SERVER \
+                                            -DENABLE_CLIENT_ONLY \
+                                            $(mutate_ENABLE_CRYPTO_2) \
+                                            $(mutate_ENABLE_SSL) \
+                                            $(mutate_ENABLE_LZO) \
+                                            $(mutate_ENABLE_PLUGIN) \
+                                            -I. $(base_CPPFLAGS)
 
 endif
 
@@ -728,45 +792,51 @@ if !INTEGRATED_openvpn_2_0
 if !INTEGRATED_openvpn_2_1
 if !INTEGRATED_openvpn_2_2
 # Tests with ssl2
-all_tests += easy.ssl2.p2p
-easy_ssl2_p2p_CFLAGS    =                       $(base_CFLAGS)
-easy_ssl2_p2p_LDADD     =                       $(base_LDADD) \
-                                                $(mutate_CRYPTO_LIBS_2) \
-                                                $(mutate_SSL_LIBS_2)
-easy_ssl2_p2p_SOURCES   =                       $(client_sources)
-easy_ssl2_p2p_CPPFLAGS  =                       $(mutate_ENABLE_CRYPTO_2) \
-                                                $(mutate_ENABLE_SSL) \
-                                                -I. $(base_CPPFLAGS)
+all_bins += easy.ssl2
+p2p_tests += p2p/easy.ssl2.p2p
+
+easy_ssl2_CFLAGS =                          $(base_CFLAGS)
+easy_ssl2_LDADD =                           $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_2) \
+                                            $(mutate_SSL_LIBS_2)
+easy_ssl2_SOURCES =                         $(client_sources)
+easy_ssl2_CPPFLAGS =                        $(mutate_ENABLE_CRYPTO_2) \
+                                            $(mutate_ENABLE_SSL) \
+                                            -I. $(base_CPPFLAGS)
 
 # Multi combo, only SSL #2 enabled, nothing else
-all_tests += multi.ssl2.combo
-multi_ssl2_combo_CFLAGS    =                    $(base_CFLAGS)
-multi_ssl2_combo_LDADD     =                    $(base_LDADD) \
-                                                $(mutate_CRYPTO_LIBS_2) \
-                                                $(mutate_SSL_LIBS_2)
-multi_ssl2_combo_SOURCES   =                    $(client_sources)
-multi_ssl2_combo_CPPFLAGS  =                    $(mutate_ENABLE_CRYPTO_2) \
-                                                $(mutate_ENABLE_SSL) \
-                                                -DENABLE_CLIENT_SERVER \
-                                                -I. $(base_CPPFLAGS)
+all_bins += multi.ssl2
+server_tests += server/multi.ssl2.server
+
+multi_ssl2_CFLAGS    =                      $(base_CFLAGS)
+multi_ssl2_LDADD     =                      $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_2) \
+                                            $(mutate_SSL_LIBS_2)
+multi_ssl2_SOURCES   =                      $(client_sources)
+multi_ssl2_CPPFLAGS  =                      $(mutate_ENABLE_CRYPTO_2) \
+                                            $(mutate_ENABLE_SSL) \
+                                            -DENABLE_CLIENT_SERVER \
+                                            -I. $(base_CPPFLAGS)
 
 # Kitchen sink. Everything is enabled, client only, with alternate SSL libs #2
-all_tests += multiclient.full.ssl2.ndebug.client
-multiclient_full_ssl2_ndebug_client_CFLAGS =    $(base_CFLAGS) $(mutate_full_CFLAGS)
-multiclient_full_ssl2_ndebug_client_LDADD =     $(base_LDADD) \
-                                                $(mutate_CRYPTO_LIBS_2) \
-                                                $(mutate_SSL_LIBS_2) \
-												$(mutate_full_LIBS)
-multiclient_full_ssl2_ndebug_client_SOURCES =   $(combo_sources)
-multiclient_full_ssl2_ndebug_client_CPPFLAGS =  -DNDEBUG \
-                                                $(mutate_ENABLE_CRYPTO_2) \
-                                                $(mutate_ENABLE_SSL) \
-                                                $(mutate_ENABLE_LZO) \
-                                                $(mutate_ENABLE_PLUGIN) \
-                                                -DENABLE_CLIENT_SERVER \
-                                                -DENABLE_CLIENT_ONLY \
-												$(mutate_full) \
-                                                -I. $(base_CPPFLAGS)
+all_bins += multiclient.full.ssl2.ndebug
+client_tests += client/multiclient.full.ssl2.ndebug.client
+
+multiclient_full_ssl2_ndebug_CFLAGS =       $(base_CFLAGS) $(mutate_full_CFLAGS)
+multiclient_full_ssl2_ndebug_LDADD =        $(base_LDADD) \
+                                            $(mutate_CRYPTO_LIBS_2) \
+                                            $(mutate_SSL_LIBS_2) \
+                                            $(mutate_full_LIBS)
+multiclient_full_ssl2_ndebug_SOURCES =      $(combo_sources)
+multiclient_full_ssl2_ndebug_CPPFLAGS =     -DNDEBUG \
+                                            $(mutate_ENABLE_CRYPTO_2) \
+                                            $(mutate_ENABLE_SSL) \
+                                            $(mutate_ENABLE_LZO) \
+                                            $(mutate_ENABLE_PLUGIN) \
+                                            -DENABLE_CLIENT_SERVER \
+                                            -DENABLE_CLIENT_ONLY \
+                                            $(mutate_full) \
+                                            -I. $(base_CPPFLAGS)
 endif
 endif
 endif
@@ -774,15 +844,16 @@ endif
 # Enabled debugging is not supposed to modify behaviour, but sometimes
 # active code is forgotten surrounded by #test ENABLE_DEBUG
 # this test may help catch those.
-all_tests +=  multi.debug.combo
-multi_debug_combo_CFLAGS      =             $(base_CFLAGS)
-multi_debug_combo_LDADD       =             $(base_LDADD) \
+all_bins +=  multi.debug
+server_tests += server/multi.debug.server
+multi_debug_CFLAGS =                        $(base_CFLAGS)
+multi_debug_LDADD =                         $(base_LDADD) \
                                             $(mutate_CRYPTO_LIBS_1) \
                                             $(mutate_SSL_LIBS_1) \
                                             @DL_LIBS@ \
                                             @LZO_LIBS@
-multi_debug_combo_SOURCES     =             $(server_sources)
-multi_debug_combo_CPPFLAGS    =             -DENABLE_DEBUG \
+multi_debug_SOURCES =                       $(server_sources)
+multi_debug_CPPFLAGS =                      -DENABLE_DEBUG \
                                             -DENABLE_CLIENT_SERVER \
                                             $(mutate_ENABLE_CRYPTO_1) \
                                             $(mutate_ENABLE_SSL) \
@@ -790,7 +861,21 @@ multi_debug_combo_CPPFLAGS    =             -DENABLE_DEBUG \
                                             $(mutate_ENABLE_PLUGIN) \
                                             -I. $(base_CPPFLAGS)
 
-check_PROGRAMS = $(all_tests)
+check_PROGRAMS = $(all_bins)
 endif
 
-TESTS = $(check_PROGRAMS)
+# To run multiple tests (LOG_COMPILER's) on the same binary, they must be
+# put in different directories, otherwise the output log files would overwrite
+# each other
+
+server/%.server:: %
+	$(MKDIR_P) $(dir $@)
+	$(LN_S) ../$< $@ || :
+
+client/%.client:: %
+	$(MKDIR_P) $(dir $@)
+	$(LN_S) ../$< $@ || :
+
+p2p/%.p2p:: %
+	$(MKDIR_P) $(dir $@)
+	$(LN_S) ../$< $@ || :
