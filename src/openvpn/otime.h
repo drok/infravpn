@@ -76,7 +76,7 @@ openvpn_gettimeofday (struct timeval *tv, void *tz)
 static inline void
 update_time (void)
 {
-#ifdef WIN32
+#if defined(WIN32) || !defined(HAVE_TIME_H)
   /* on WIN32, gettimeofday is faster than time(NULL) */
   struct timeval tv;
   openvpn_gettimeofday (&tv, NULL);

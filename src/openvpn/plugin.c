@@ -40,7 +40,11 @@
 #include "error.h"
 #include "misc.h"
 #include "plugin.h"
+#ifdef ENABLE_SSL
 #include "ssl_backend.h"
+#else
+#define SSLAPI SSLAPI_NONE
+#endif
 #include "win32.h"
 #include "memdbg.h"
 

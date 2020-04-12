@@ -948,6 +948,7 @@ setenv_settings (struct env_set *es, const struct options *o)
     setenv_connection_entry (es, &o->ce, 1);
 }
 
+#if ( P2MP && P2MP_SERVER ) || (defined(WIN32) && !defined(ENABLE_SMALL))
 static in_addr_t
 get_ip_addr (const char *ip_string, int msglevel, bool *error)
 {
@@ -963,7 +964,7 @@ get_ip_addr (const char *ip_string, int msglevel, bool *error)
     *error = true;
   return ret;
 }
-
+#endif
 /* helper: parse a text string containing an IPv6 address + netbits
  * in "standard format" (2001:dba::/32)
  * "/nn" is optional, default to /64 if missing
@@ -1831,7 +1832,6 @@ options_postprocess_verify_ce (const struct options *options, const struct conne
 {
   struct options defaults;
   int dev = DEV_TYPE_UNDEF;
-  bool pull = false;
 
   init_options (&defaults, true);
 
@@ -1915,6 +1915,7 @@ options_postprocess_verify_ce (const struct options *options, const struct conne
 
   /* will we be pulling options from server? */
 #if P2MP
+  bool pull = false;
   pull = options->pull;
 #endif
 
@@ -2278,6 +2279,7 @@ options_postprocess_verify_ce (const struct options *options, const struct conne
 	  if ((!(options->ca_file)) && (!(options->ca_path)))
 	    msg(M_USAGE, "You must define CA file (--ca) or CA path (--capath)");
 #endif
+#if P2MP
 	  if (pull)
 	    {
 
@@ -2291,9 +2293,7 @@ options_postprocess_verify_ce (const struct options *options, const struct conne
 
 	      if (sum == 0)
 		{
-#if P2MP
 		  if (!options->auth_user_pass_file)
-#endif
 		    msg (M_USAGE, "No client-side authentication method is specified.  You must use either --cert/--key, --pkcs12, or --auth-user-pass");
 		}
 	      else if (sum == 2)
@@ -2304,6 +2304,7 @@ options_postprocess_verify_ce (const struct options *options, const struct conne
 		}
 	    }
 	  else
+#endif
 	    {
 	      notnull (options->cert_file, "certificate file (--cert) or PKCS#12 file (--pkcs12)");
 #ifdef MANAGMENT_EXTERNAL_KEY
@@ -2361,10 +2362,10 @@ options_postprocess_verify_ce (const struct options *options, const struct conne
 #endif
 #if P2MP
       MUST_BE_UNDEF (server_poll_timeout);
-#endif
 
       if (pull)
 	msg (M_USAGE, err, "--pull");
+#endif
     }
 #undef MUST_BE_UNDEF
 #endif /* ENABLE_CRYPTO */
@@ -2451,7 +2452,6 @@ options_postprocess_mutate_ce (struct options *o, struct connection_entry *ce)
 static void
 options_postprocess_mutate_invariant (struct options *options)
 {
-  const int dev = dev_type_enum (options->dev, options->dev_type);
 
   /*
    * In forking TCP server mode, you don't need to ifconfig
@@ -2461,6 +2461,7 @@ options_postprocess_mutate_invariant (struct options *options)
     options->ifconfig_noexec = true;
 
 #ifdef WIN32
+  const int dev = dev_type_enum (options->dev, options->dev_type);
   if ((dev == DEV_TYPE_TUN || dev == DEV_TYPE_TAP) && !options->route_delay_defined)
     {
       if (options->mode == MODE_POINT_TO_POINT)

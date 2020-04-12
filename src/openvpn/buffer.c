@@ -33,7 +33,6 @@
 #include "common.h"
 #include "buffer.h"
 #include "error.h"
-#include "mtu.h"
 #include "misc.h"
 
 #include "memdbg.h"
@@ -74,6 +73,10 @@ alloc_buf (size_t size)
   buf.data = calloc (1, size);
 #endif
   check_malloc_return(buf.data);
+#ifdef BUF_INIT_TRACKING
+  buf.debug_file = NULL;
+  buf.debug_line = 0;
+#endif
 
   return buf;
 }
@@ -98,6 +101,10 @@ alloc_buf_gc (size_t size, struct gc_arena *gc)
 #endif
   if (size)
     *buf.data = 0;
+#ifdef BUF_INIT_TRACKING
+  buf.debug_file = NULL;
+  buf.debug_line = 0;
+#endif
   return buf;
 }
 
@@ -119,6 +126,11 @@ clone_buf (const struct buffer* buf)
 #endif
   check_malloc_return (ret.data);
   memcpy (BPTR (&ret), BPTR (buf), BLEN (buf));
+#ifdef BUF_INIT_TRACKING
+  ret.debug_file = NULL;
+  ret.debug_line = 0;
+#endif
+
   return ret;
 }
 
@@ -644,6 +656,11 @@ string_alloc_buf (const char *str, struct gc_arena *gc)
   if (buf.len > 0) /* Don't count trailing '\0' as part of length */
     --buf.len;
 
+#ifdef BUF_INIT_TRACKING
+  buf.debug_file = NULL;
+  buf.debug_line = 0;
+#endif
+
   return buf;
 }
 
@@ -920,7 +937,7 @@ valign4 (const struct buffer *buf, const char *file, const int line)
   if (buf && buf->len)
     {
       int msglevel = D_ALIGN_DEBUG;
-      const unsigned int u = (unsigned int) BPTR (buf);
+      const unsigned long u = (unsigned long) BPTR (buf);
 
       if (u & (PAYLOAD_ALIGN-1))
 	msglevel = D_ALIGN_ERRORS;

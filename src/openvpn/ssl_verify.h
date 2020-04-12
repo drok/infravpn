@@ -177,7 +177,9 @@ tls_common_name_hash (const struct tls_multi *multi, const char **cn, uint32_t *
 static inline bool verify_user_pass_enabled(struct tls_session *session)
 {
   return (session->opt->auth_user_pass_verify_script
+#ifdef ENABLE_PLUGIN
         || plugin_defined (session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY)
+#endif
 #ifdef MANAGEMENT_DEF_AUTH
         || management_enable_def_auth (management)
 #endif

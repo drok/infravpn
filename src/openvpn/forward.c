@@ -735,7 +735,6 @@ void
 process_incoming_link (struct context *c)
 {
   struct gc_arena gc = gc_new ();
-  bool decrypt_status;
   struct link_socket_info *lsi = get_link_socket_info (c);
   const uint8_t *orig_buf = c->c2.buf.data;
 
@@ -829,7 +828,7 @@ process_incoming_link (struct context *c)
 #endif /* ENABLE_SSL */
 
       /* authenticate and decrypt the incoming packet */
-      decrypt_status = openvpn_decrypt (&c->c2.buf, c->c2.buffers->decrypt_buf, &c->c2.crypto_options, &c->c2.frame);
+      bool decrypt_status = openvpn_decrypt (&c->c2.buf, c->c2.buffers->decrypt_buf, &c->c2.crypto_options, &c->c2.frame);
 
       if (!decrypt_status && link_socket_connection_oriented (c->c2.link_socket))
 	{
@@ -907,9 +906,11 @@ process_incoming_link (struct context *c)
     {
       buf_reset (&c->c2.to_tun);
     }
+#ifdef ENABLE_CRYPTO
  done:
   perf_pop ();
   gc_free (&gc);
+#endif
 }
 
 /*
