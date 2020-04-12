@@ -5,7 +5,7 @@
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2016-2018 Fox Crypto B.V. <openvpn@fox-it.com>
+ *  Copyright (C) 2017 Fox Crypto B.V. <openvpn@fox-it.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -21,14 +21,16 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef MOCK_MSG_H
-#define MOCK_MSG_H
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <setjmp.h>
+#include <cmocka.h>
 
-/**
- * Mock debug level defaults to 0, which gives clean(-ish) test reports.  Call
- * this function from your test driver to increase debug output when you
- * need debug output.
- */
-void mock_set_debug_level(int level);
-
-#endif /* MOCK_MSG */
+unsigned long
+get_random(void)
+{
+    /* rand() is not very random, but it's C99 and this is just for testing */
+    return rand();
+}

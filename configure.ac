@@ -1223,12 +1223,14 @@ AM_CONDITIONAL([INTEGRATED_openvpn_2_0], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.0
 AM_CONDITIONAL([INTEGRATED_openvpn_2_1], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.1\.' >/dev/null])
 AM_CONDITIONAL([INTEGRATED_openvpn_2_2], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.2\.' >/dev/null])
 AM_CONDITIONAL([INTEGRATED_openvpn_2_3], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.3\.' >/dev/null])
+AM_CONDITIONAL([INTEGRATED_openvpn_le_2_3], [[expr "$PACKAGE_STRING" : 'OpenVPN 2\.[0-3]\.' >/dev/null]])
 AM_CONDITIONAL([INTEGRATED_openvpn_2_4], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.4\.' >/dev/null])
 AM_CONDITIONAL([INTEGRATED_openvpn_2_5], [expr "$PACKAGE_STRING" : 'OpenVPN 2\.5\.' >/dev/null])
 
 AM_CONDITIONAL([INTEGRATED_ovpn], [expr "$PACKAGE_STRING" : 'OVPN ' >/dev/null])
 AM_CONDITIONAL([INTEGRATED_ovpn_1_0], [expr "$PACKAGE_STRING" : 'OVPN 1\.0\.' >/dev/null])
 
+AC_CONFIG_FILES(tests/integration/does-it-build/Makefile)
 # ######################## End Buildable Packages #############################
 
 # ####################### Feature Unit Tests ##################################
@@ -1247,6 +1249,7 @@ AM_CONDITIONAL([INTEGRATED_ovpn_1_0], [expr "$PACKAGE_STRING" : 'OVPN 1\.0\.' >/
 AM_COND_IF([IMPLEMENTED_base64_2_0], [implemented=yes])
 AM_COND_IF([IMPLEMENTED_base64_2_2], [implemented=yes])
 AM_COND_IF([IMPLEMENTED_base64_2_3], [implemented=yes])
+AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/base64/Makefile)])
 AM_CONDITIONAL([UNIT_TESTED_base64], [test "$implemented" = "yes" && unset implemented])
 
 AM_COND_IF([IMPLEMENTED_tls_crypt_2_4], [implemented=yes])
@@ -1262,9 +1265,11 @@ AM_COND_IF([IMPLEMENTED_tls_crypt_2_5], [implemented=yes])
 # implemented features, regardless if they are used or not in the build, in
 # "maintainer
 #
+AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/tls_crypt/Makefile)])
 AM_CONDITIONAL([UNIT_TESTED_tls_crypt], [test "$implemented" = "yes" && unset implemented])
 
 AM_COND_IF([IMPLEMENTED_rfc4821], [implemented=yes])
+AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/rfc4821/Makefile)])
 AM_CONDITIONAL([UNIT_TESTED_rfc4821], [test "$implemented" = "yes" && unset implemented])
 
 AM_COND_IF([IMPLEMENTED_buffer_2_0], [implemented=yes])
@@ -1272,12 +1277,15 @@ AM_COND_IF([IMPLEMENTED_buffer_2_2], [implemented=yes])
 AM_COND_IF([IMPLEMENTED_buffer_2_3], [implemented=yes])
 AM_COND_IF([IMPLEMENTED_buffer_2_4], [implemented=yes])
 AM_COND_IF([IMPLEMENTED_buffer_2_5], [implemented=yes])
+AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/buffer/Makefile)])
 AM_CONDITIONAL([UNIT_TESTED_buffer], [test "$implemented" = "yes" && unset implemented])
 
 AM_COND_IF([IMPLEMENTED_mtu_2_0], [implemented=yes])
 AM_COND_IF([IMPLEMENTED_mtu_2_4], [implemented=yes])
 AM_COND_IF([IMPLEMENTED_mtu2],    [implemented=yes])
+AS_IF([test "$implemented" = "yes"], [AC_CONFIG_FILES(tests/unit/mtu/Makefile)])
 AM_CONDITIONAL([UNIT_TESTED_mtu], [test "$implemented" = "yes" && unset implemented])
+
 AM_COND_IF([IMPLEMENTED_sitnl_2_5], [implemented=yes])
 AM_CONDITIONAL([UNIT_TESTED_sitnl], [test "$implemented" = "yes" && unset implemented])
 # ################### End Feature Unit Tests ##################################
@@ -1300,6 +1308,7 @@ AM_CONDITIONAL([ENABLE_UNITTESTS_ALL], [test "${enable_unit_tests}" = "all"])
 AC_ARG_VAR([TEST_CPPFLAGS], [Preprocessor flags applied to all C unit tests])
 AC_ARG_VAR([TEST_CFLAGS], [Compiler flags applied to all C unit tests])
 AC_ARG_VAR([TEST_LDFLAGS], [Linker flags applied to all C unit tests])
+TEST_CFLAGS="$TEST_CFLAGS -g"
 
 AC_ARG_VAR([XFAIL_TESTS], [Tests expected to fail])
 

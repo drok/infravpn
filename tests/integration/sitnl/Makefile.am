@@ -17,32 +17,10 @@
 #  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
-TEST_EXTENSIONS = .Tcrypto
-TCRYPTO_LOG_COMPILER = $(top_srcdir)/tests/integration/does-it-build/t_lpback.sh
+AUTOMAKE_OPTIONS = color-tests parallel-tests nostdinc
 
-if ENABLE_UNITTESTS
+include $(top_srcdir)/tests/srcpaths.inc
+include $(top_srcdir)/tests/integration/rules.inc
 
-AM_TESTS_ENVIRONMENT =
-TESTS =
+TESTS = t_net.sh
 
-if IMPLEMENTED_tls_crypt_2_5
-AM_TESTS_ENVIRONMENT += IMPLEMENTED_tls_crypt_2_5=1
-endif
-
-
-if ENABLE_CRYPTO
-
-if INTEGRATED_openvpn
-TESTS += test-crypto/openvpn.Tcrypto
-endif
-
-if INTEGRATED_ovpn
-TESTS += test-crypto/openvpn.Tcrypto
-endif
-
-test-crypto/%.Tcrypto:: %
-	$(MKDIR_P) $(dir $@)
-	$(LN_S) ../$< $@ || :
-endif
-
-endif
