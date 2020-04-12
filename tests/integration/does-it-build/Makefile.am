@@ -16,8 +16,6 @@
 #  with this program; if not, write to the Free Software Foundation, Inc.,
 #  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
-AUTOMAKE_OPTIONS = color-tests parallel-tests nostdinc
-
 include $(top_srcdir)/tests/srcpaths.inc
 include $(top_srcdir)/tests/integration/rules.inc
 
@@ -724,7 +722,7 @@ multi_crypto_nossl_lzo_CPPFLAGS =           -DENABLE_CLIENT_SERVER \
                                             -I. $(base_CPPFLAGS)
 
 all_bins += multi.crypto-nossl-lzo-plugin
-server_tests += server/multi.crypto-nossl-lzo-plugin
+server_tests += server/multi.crypto-nossl-lzo-plugin.server
 
 multi_crypto_nossl_lzo_plugin_CFLAGS =      $(base_CFLAGS)
 multi_crypto_nossl_lzo_plugin_LDADD =       $(base_LDADD) \

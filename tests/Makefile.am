@@ -9,7 +9,7 @@
 #  Copyright (C) 2006-2012 Alon Bar-Lev <alon.barlev@gmail.com>
 #
 
-AUTOMAKE_OPTIONS = parallel-tests
+AUTOMAKE_OPTIONS = color-tests parallel-tests 1.13
 
 MAINTAINERCLEANFILES = \
 	$(srcdir)/Makefile.in

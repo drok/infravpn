@@ -19,6 +19,8 @@
 # Integration build flavors. Each flavor can be tested by a different
 # runner/log_compiler, defined as {FLAVOR}_LOG_COMPILER in a subdir from here
 
+AUTOMAKE_OPTIONS = color-tests parallel-tests nostdinc 1.13
+
 # Test a binary as Multi Server
 TEST_EXTENSIONS = .server
 

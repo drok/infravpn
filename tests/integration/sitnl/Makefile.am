@@ -17,8 +17,6 @@
 #  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
-AUTOMAKE_OPTIONS = color-tests parallel-tests nostdinc
-
 include $(top_srcdir)/tests/srcpaths.inc
 include $(top_srcdir)/tests/integration/rules.inc
 
